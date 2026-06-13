@@ -15,7 +15,7 @@ import {needOf} from './economy.js';
 import {newGame} from './world.js';
 import {render,msg,jumpCamFrac,resetVisuals} from './render.js';
 import {initAudio,sfx,applyMute,applyVolumes,setIntensity} from './audio.js';
-import {loadAll,saveSettings,recordResult,bestTime,hasAch,achCount,ACHIEVEMENTS} from './storage.js';
+import {loadAll,saveSettings,recordResult,bestTime,hasAch,achCount,ACHIEVEMENTS,tipSeen,markTipSeen,resetTips} from './storage.js';
 
 let lastInfo='';
 const TOUCH=(typeof window!=='undefined'&&window.matchMedia)?window.matchMedia('(pointer:coarse)').matches:false;
@@ -184,6 +184,49 @@ function tutCheck(){
   }
 }
 
+/* ---------- first-use structure tips ----------
+   The first time the player ever selects a build type, a small card explains
+   what it does and how to use it — covering every structure once, then
+   remembered (storage.js). Render-only; toggle in SETTINGS. */
+const STRUCTURE_TIPS={
+  collector:'Claims the surrounding ground for energy income — fields never overlap, so spread Collectors out across open terrain to own more map.',
+  relay:'A long-reach <b>backbone</b>. It carries your network across the map so you can build out near the Flux. Chain them toward the front.',
+  reactor:'Flat <b>+0.8 e/s</b>, no territory needed — park them safe in the rear. Sitting on a Power Zone makes it ×6.',
+  battery:'<b>+25 energy capacity.</b> Build a few so bursts of construction and ammo don’t drain your reserves to zero.',
+  terra:'The <b>Terp</b> reshapes land. Set a target level (−/+ or [ ]) then click or drag ground in range to raise or lower it — walls, moats, ramps and platforms.',
+  cannon:'Front-line workhorse: auto-fires at <b>shallow</b> Flux in range. Cheap and fast, but it eats energy as ammo — build a wall of them and keep them supplied.',
+  mortar:'Lobs shells at <b>deep pools</b> (depth ≥0.9) far behind the front. Splash damage cracks open flooded basins that Cannons can’t reach.',
+  beam:'<b>Anti-air.</b> The only thing that shoots down <b>Spore</b> blobs before they land. Cover your base whenever Spore Towers are on the map.',
+  sprayer:'Sprays friendly <b>Anti-Flux</b> that annihilates Flux on contact — a chemical wall for gaps that terrain can’t hold.',
+  nullifier:'Your <b>win condition</b>. Charges 20 packets, fires once, and erases every Emitter or Spore Tower in range. Must be built with one nearby.',
+  cryo:'Hotkey <b>C</b>. A freeze pulse zeroes Flux in range and raises temporary <b>ice ground</b> — bridge a flooded basin and rush a Nullifier across.',
+  sniper:'Hotkey <b>N</b>. One-shots <b>Digitalis Runners</b> before they reach your structures and stun them. Place near your Digitalis-prone front.',
+  strafer:'Hotkey <b>V</b>. An air pad — its aircraft sorties against the <b>deepest Flux</b> nearby. Mobile firepower for shifting hotspots.',
+  shield:'Hotkey <b>B</b>. Drains energy to physically <b>push Flux outward</b> in a dome — buy time to charge a Nullifier under heavy flooding.',
+  convert:'Hotkey <b>K</b>. Charges up, then <b>captures</b> an Emitter so it pumps Anti-Flux for you. Counts as neutralised toward winning.',
+  bomber:'Hotkey <b>J</b>. An air pad — its bomber carpet-drops <b>Anti-Flux</b> on the deepest Flux. Heavy area denial from the sky.',
+  pylon:'A <b>backbone</b> with huge reach. Each connected Pylon also speeds up <b>every packet</b> (up to +0.6) — the logistics spine for big maps.',
+  harvester:'Must sit on a purple <b>Aether Node</b>. Mines Aether into the <b>Forge</b> so you can buy permanent upgrades.',
+  guppy:'An air-link <b>backbone</b> with the longest reach of all — attaches distant outposts across gaps nothing else can bridge.',
+  sensor:'A scout tower: reveals a radar ring and blips around it. No combat — pure vision over the fog.',
+  repair:'Heals nearby <b>built</b> structures over time (draining a little energy while it works). Tuck it behind the front line.',
+  resonator:'A passive aura: weapons within range get <b>+40% fire rate & range</b>. But it attracts Spores — guard it well.',
+  siphon:'Build it <b>directly on deep Flux</b> (it’s immune to damage). It drains its own cell straight into energy — turn the flood into fuel.',
+  inhibitor:'Drains energy to <b>slow Flux to a crawl</b> in a zone — a soft wall that buys time at chokepoints.'
+};
+function hideTip(){if(el.tipCard)el.tipCard.classList.add('hide');}
+function showTip(key){
+  if(!el.tipCard)return;
+  if(!settings.tips || (S&&S.tut)){hideTip();return;}   // suppressed during the guided tutorial
+  const tip=STRUCTURE_TIPS[key];
+  if(!tip || tipSeen(key)){hideTip();return;}
+  const T=TYPES[key];
+  if(el.tipName)el.tipName.textContent=(T&&T.name?T.name:key).toUpperCase();
+  if(el.tipBody)el.tipBody.innerHTML=tip;
+  el.tipCard.classList.remove('hide');
+  markTipSeen(key);
+}
+
 /* ---------- UI helpers ---------- */
 export function banner(show,text){
   if(text!==undefined)el.banner.textContent=text;
@@ -217,7 +260,8 @@ export function selectBuild(key){
   const willSelect=(selBuild!==key);
   setSelBuild(willSelect?key:null);
   setSel(null);
-  if(willSelect){const ti=tabOf(key);if(ti>=0&&ti!==buildTabIdx)showTab(ti);}  // jump to its tab
+  if(willSelect){const ti=tabOf(key);if(ti>=0&&ti!==buildTabIdx)showTab(ti);showTip(key);}  // jump to its tab + first-use tip
+  else hideTip();
   refreshButtons(); updateInfo(true);
 }
 export function toggleDel(){
@@ -237,7 +281,7 @@ export function toggleMove(){
   refreshButtons(); updateInfo(true);
 }
 export function cancelModes(){
-  clearArm(); setMarquee(null);
+  clearArm(); setMarquee(null); hideTip();
   setSelBuild(null); setDelMode(false); setSel(null); setMoveSrc(null);
   setMoveMode(false); setMoveGroup([]);
   refreshButtons(); updateInfo(true);
@@ -880,7 +924,8 @@ function init(){
     mini.addEventListener('pointercancel',onMiniUp);
   }
   const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','sBloom','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow',
-    'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip','tutNext','tutHint'];
+    'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip','tutNext','tutHint',
+    'sTips','btnResetTips','tipCard','tipName','tipBody','tipClose'];
   for(const id of ids)el[id]=document.getElementById(id);
   // categories live behind icon tabs so the palette stays compact
   VCATS.forEach(function(cat,ci){
@@ -897,12 +942,14 @@ function init(){
   el.sMusic.value=settings.musicVol; el.sSfx.value=settings.sfxVol;
   el.sShake.checked=settings.shake; el.sCb.checked=settings.colorblind;
   if(el.sBloom)el.sBloom.checked=settings.bloom;
+  if(el.sTips)el.sTips.checked=settings.tips;
   function onSetting(){
     settings.musicVol=parseFloat(el.sMusic.value);
     settings.sfxVol=parseFloat(el.sSfx.value);
     settings.shake=el.sShake.checked;
     settings.colorblind=el.sCb.checked;
     if(el.sBloom)settings.bloom=el.sBloom.checked;
+    if(el.sTips)settings.tips=el.sTips.checked;
     applyVolumes(); saveSettings();
   }
   el.sMusic.addEventListener('input',function(){initAudio();onSetting();});
@@ -910,6 +957,14 @@ function init(){
   el.sShake.addEventListener('change',onSetting);
   el.sCb.addEventListener('change',onSetting);
   if(el.sBloom)el.sBloom.addEventListener('change',onSetting);
+  if(el.sTips)el.sTips.addEventListener('change',onSetting);
+  if(el.tipClose)el.tipClose.addEventListener('click',hideTip);
+  if(el.btnResetTips)el.btnResetTips.addEventListener('click',function(ev){
+    ev.preventDefault();
+    resetTips(); sfx('uiclick');
+    if(el.sTips&&!el.sTips.checked){el.sTips.checked=true;settings.tips=true;saveSettings();}
+    msg('Structure tips reset — they’ll show again as you build.','#a9c2ff');
+  });
   const DIFF_KEYS=['easy','normal','hard','insane'];
   function refreshMenuMeta(){
     const parts=[];

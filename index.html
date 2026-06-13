@@ -308,6 +308,22 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
   padding:6px 12px;font-weight:800;letter-spacing:1px;font-size:11px;cursor:pointer;white-space:nowrap;
   box-shadow:0 2px 10px rgba(77,240,200,.3)}
 #tutNext:hover{filter:brightness(1.08)}
+/* first-use structure tip (bottom-centre, blue) — shown once per build type */
+#tipCard{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:9;width:min(440px,92vw);
+  background:linear-gradient(160deg,rgba(13,20,34,.97),rgba(9,14,24,.97));
+  border:1px solid #7c9cff;border-radius:12px;padding:10px 13px;
+  box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 22px rgba(124,156,255,.2);animation:tipIn .3s ease}
+@keyframes tipIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+.tipName{font:800 11px/1 ui-monospace,monospace;letter-spacing:1.5px;color:#a9c2ff;
+  background:rgba(124,156,255,.14);padding:4px 8px;border-radius:6px}
+#tipClose{background:linear-gradient(180deg,#8fa8ff,#6478f0);color:#fff;border:0;border-radius:7px;
+  padding:5px 11px;font-weight:800;letter-spacing:1px;font-size:10px;cursor:pointer;white-space:nowrap}
+#tipClose:hover{filter:brightness(1.08)}
+#tipCard p{margin:7px 0 0;font-size:12px;line-height:1.5;color:var(--mut)}
+#tipCard b{color:#a9c2ff;font-weight:700}
+.miniBtn{margin-left:6px;background:rgba(124,156,255,.15);color:#a9c2ff;border:1px solid rgba(124,156,255,.4);
+  border-radius:5px;padding:1px 7px;font-size:9px;letter-spacing:.5px;cursor:pointer}
+.miniBtn:hover{background:rgba(124,156,255,.28);color:#fff}
 .manual{padding-left:18px;color:var(--mut);font-size:12.5px;line-height:1.7;margin:8px 0 0}
 .manual li b{color:var(--ink)}
 /* ---- phones (portrait & narrow): canvas docked on top, panel scrolls below
@@ -386,6 +402,10 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
         <button id="tutNext">NEXT &#9654;</button>
       </div>
     </div>
+    <div id="tipCard" class="hide">
+      <div class="tutHead"><span id="tipName" class="tipName">STRUCTURE</span><button id="tipClose">GOT IT &#10003;</button></div>
+      <p id="tipBody"></p>
+    </div>
 
     <div id="menu" class="overlay show">
       <div class="panelBox">
@@ -432,6 +452,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
             <label class="ck"><input type="checkbox" id="sShake"> Screen shake</label>
             <label class="ck"><input type="checkbox" id="sCb"> Colorblind Flux</label>
             <label class="ck"><input type="checkbox" id="sBloom"> Bloom glow</label>
+            <label class="ck"><input type="checkbox" id="sTips"> Structure tips <button type="button" id="btnResetTips" class="miniBtn">replay all</button></label>
           </div>
         </details>
         <p class="ctrlNote noteDesktop"><b>1&#8211;0</b> build &#183; <b>click/drag</b> place &#183; <b>X</b> recycle &#183; <b>T</b> ranges &#183; <b>P</b> supply &#183; <b>R</b> clip &#183; <b>Space</b> pause &#183; <b>H</b> help</p>

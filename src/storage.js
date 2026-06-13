@@ -10,7 +10,7 @@
 import {settings} from './state.js';
 
 const KEY='fluxfront.v1';
-let DB={settings:{},records:{},daily:{},ach:{}};
+let DB={settings:{},records:{},daily:{},ach:{},tips:{}};
 
 function safeGet(){
   try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null;}catch(e){return null;}
@@ -36,15 +36,19 @@ export const ACHIEVEMENTS=[
 export function loadAll(){
   const d=safeGet();
   if(d){
-    DB=Object.assign({settings:{},records:{},daily:{},ach:{}},d);
+    DB=Object.assign({settings:{},records:{},daily:{},ach:{},tips:{}},d);
     Object.assign(settings,DB.settings||{});
   }
   return DB;
 }
 export function saveSettings(){
-  DB.settings={musicVol:settings.musicVol,sfxVol:settings.sfxVol,shake:settings.shake,colorblind:settings.colorblind,bloom:settings.bloom};
+  DB.settings={musicVol:settings.musicVol,sfxVol:settings.sfxVol,shake:settings.shake,colorblind:settings.colorblind,bloom:settings.bloom,tips:settings.tips};
   safePut();
 }
+/* one-time structure tips: remember which build types the player has met */
+export function tipSeen(t){return !!(DB.tips&&DB.tips[t]);}
+export function markTipSeen(t){if(!DB.tips)DB.tips={};if(!DB.tips[t]){DB.tips[t]=1;safePut();}}
+export function resetTips(){DB.tips={};safePut();}
 /* record a finished game; returns {best:bool, newAch:[ids]} */
 export function recordResult(r){
   const out={best:false,newAch:[]};
