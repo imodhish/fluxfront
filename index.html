@@ -96,6 +96,11 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
 #credit{position:absolute;left:10px;bottom:8px;z-index:5;font-size:10px;letter-spacing:1px;
   color:var(--mut);opacity:.55;pointer-events:none;user-select:none}
 #credit b{color:var(--acc)}
+#fps{position:absolute;right:10px;top:8px;z-index:6;font:700 11px/1 ui-monospace,Menlo,Consolas,monospace;
+  letter-spacing:.5px;color:var(--acc);background:rgba(7,12,20,.6);border:1px solid rgba(77,240,200,.25);
+  border-radius:6px;padding:3px 7px;pointer-events:none;user-select:none}
+#fps.bad{color:#ff8d7a;border-color:rgba(255,141,122,.4)}
+#fps.hide{display:none}
 .diffs{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 16px}
 .diff{
   flex:1 1 42%;background:linear-gradient(180deg,#0d1626,#0a111d);border:1px solid var(--line);border-radius:10px;
@@ -300,6 +305,18 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
 #info b{color:var(--ink)}
 #info .dim{color:var(--mut);opacity:.8}
 #info .bad{color:var(--bad);font-weight:700}
+/* rich selected-structure panel */
+.spHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px}
+.spHead b{color:var(--acc);font-size:13px;letter-spacing:.5px}
+.spBtn{background:#161f2e;border:1px solid var(--line);color:var(--mut);border-radius:6px;
+  padding:3px 9px;font-size:12px;cursor:pointer;flex:0 0 auto}
+.spBtn:hover{color:#ff8d7a;border-color:#ff8d7a;box-shadow:0 0 8px rgba(255,141,122,.2)}
+.spBtn.wide{display:block;width:100%;margin-top:7px;color:#9fd0ff;font-size:11px;font-weight:700;letter-spacing:1px}
+.spBtn.wide:hover{color:#fff;border-color:#9fd0ff;box-shadow:0 0 8px rgba(159,208,255,.2)}
+.spRow{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:5px;letter-spacing:.3px}
+.mbar{height:5px;background:#0a111d;border:1px solid #16243a;border-radius:3px;overflow:hidden;margin-top:2px}
+.mbar i{display:block;height:100%;width:0;transition:width .2s ease}
+.spStat{font-size:11px;margin-top:5px}
 .r{display:flex;justify-content:space-between;gap:18px;padding:4px 0;border-bottom:1px dashed var(--line);font-size:13px}
 .r span:last-child{color:var(--acc);font-weight:700}
 .big{
@@ -419,6 +436,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
     <canvas id="game" width="1600" height="1000"></canvas>
     <div id="banner" class="hide"></div>
     <div id="credit">FLUX<b>FRONT</b> &#183; By <b>iModhish</b></div>
+    <div id="fps" class="hide">-- fps</div>
     <div id="tutCard" class="hide">
       <div class="tutHead"><span id="tutStepNo">1 / 12</span><button id="tutSkip">SKIP TUTORIAL &#215;</button></div>
       <h4 id="tutTitle"></h4>
@@ -437,6 +455,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
       <div class="panelBox">
         <h1 class="title">FLUX<b>FRONT</b></h1>
         <p class="tag">Contain the Flux. Hunt the Emitters. <span class="byline">By iModhish</span></p>
+        <button class="big hide" id="btnContinue" style="margin:0 0 12px;background:linear-gradient(180deg,#ffd27f,#f0b44a);color:#2a1d00">&#11118; CONTINUE SECTOR <small id="contMeta" style="font-weight:600;font-size:10px;text-transform:none;display:block;opacity:.85"></small></button>
         <button class="big tutBtn" id="btnTutorial">&#9654; START FIRST MISSION <small>new here? learn in 5 minutes</small></button>
         <div class="diffs">
           <button class="diff" id="diff_easy">EASY<small id="bl_easy"></small></button>
@@ -479,6 +498,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
             <label class="ck"><input type="checkbox" id="sCb"> Colorblind Flux</label>
             <label class="ck"><input type="checkbox" id="sBloom"> Bloom glow</label>
             <label class="ck"><input type="checkbox" id="sTips"> Structure tips <button type="button" id="btnResetTips" class="miniBtn">replay all</button></label>
+            <label class="ck"><input type="checkbox" id="sFps"> Show FPS</label>
           </div>
         </details>
         <p class="ctrlNote noteDesktop"><b>1&#8211;0</b> build &#183; <b>click/drag</b> place &#183; <b>X</b> recycle &#183; <b>T</b> ranges &#183; <b>P</b> supply &#183; <b>R</b> clip &#183; <b>Space</b> pause &#183; <b>H</b> help</p>

@@ -10,7 +10,7 @@
 import {settings} from './state.js';
 
 const KEY='fluxfront.v1';
-let DB={settings:{},records:{},daily:{},ach:{},tips:{}};
+let DB={settings:{},records:{},daily:{},ach:{},tips:{},cont:null};
 
 function safeGet(){
   try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null;}catch(e){return null;}
@@ -36,19 +36,24 @@ export const ACHIEVEMENTS=[
 export function loadAll(){
   const d=safeGet();
   if(d){
-    DB=Object.assign({settings:{},records:{},daily:{},ach:{},tips:{}},d);
+    DB=Object.assign({settings:{},records:{},daily:{},ach:{},tips:{},cont:null},d);
     Object.assign(settings,DB.settings||{});
   }
   return DB;
 }
 export function saveSettings(){
-  DB.settings={musicVol:settings.musicVol,sfxVol:settings.sfxVol,shake:settings.shake,colorblind:settings.colorblind,bloom:settings.bloom,tips:settings.tips};
+  DB.settings={musicVol:settings.musicVol,sfxVol:settings.sfxVol,shake:settings.shake,colorblind:settings.colorblind,bloom:settings.bloom,tips:settings.tips,fps:settings.fps};
   safePut();
 }
 /* one-time structure tips: remember which build types the player has met */
 export function tipSeen(t){return !!(DB.tips&&DB.tips[t]);}
 export function markTipSeen(t){if(!DB.tips)DB.tips={};if(!DB.tips[t]){DB.tips[t]=1;safePut();}}
 export function resetTips(){DB.tips={};safePut();}
+/* resume-in-progress: store a tiny snapshot (seed + diff + mods + action log
+   + tick). The deterministic engine rebuilds exact state by replaying it. */
+export function saveGame(g){DB.cont=g;safePut();}
+export function loadGame(){return DB.cont||null;}
+export function clearGame(){if(DB.cont){DB.cont=null;safePut();}}
 /* record a finished game; returns {best:bool, newAch:[ids]} */
 export function recordResult(r){
   const out={best:false,newAch:[]};

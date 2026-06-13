@@ -25,7 +25,7 @@ export let uiScale=1;                // scales canvas-space UI text when the can
 export let showRanges=false;         // toggle: draw every weapon/link range at once (T)
 export let marquee=null;             // {x0,y0,x1,y1} world-space box-select rect (recycle mode)
 // player settings (persisted via storage.js) — visual/audio prefs, never sim
-export const settings={musicVol:0.6,sfxVol:0.9,shake:true,colorblind:false,bloom:true,tips:true};
+export const settings={musicVol:0.6,sfxVol:0.9,shake:true,colorblind:false,bloom:true,tips:true,fps:false};
 
 export function setS(v){S=v;}
 export function setSelBuild(v){selBuild=v;}

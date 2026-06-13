@@ -15,7 +15,7 @@ import {needOf} from './economy.js';
 import {newGame} from './world.js';
 import {render,msg,jumpCamFrac,resetVisuals} from './render.js';
 import {initAudio,sfx,applyMute,applyVolumes,setIntensity} from './audio.js';
-import {loadAll,saveSettings,recordResult,bestTime,hasAch,achCount,ACHIEVEMENTS,tipSeen,markTipSeen,resetTips} from './storage.js';
+import {loadAll,saveSettings,recordResult,bestTime,hasAch,achCount,ACHIEVEMENTS,tipSeen,markTipSeen,resetTips,saveGame,loadGame,clearGame} from './storage.js';
 
 let lastInfo='';
 const TOUCH=(typeof window!=='undefined'&&window.matchMedia)?window.matchMedia('(pointer:coarse)').matches:false;
@@ -87,6 +87,7 @@ function applyMapSize(idx){
   updateUiScale();
 }
 export function startGame(dk,seed,opts){
+  clearGame();                          // any new/resumed game invalidates the old continue slot
   const sizeIdx=(opts&&opts.sizeIdx!==undefined)?opts.sizeIdx:selSize;
   applyMapSize(sizeIdx);
   newGame(dk,seed,opts);
@@ -111,6 +112,41 @@ function pumpReplay(){
 }
 function encodeRun(r){return btoa(unescape(encodeURIComponent(JSON.stringify(r))));}
 function decodeRun(s){return JSON.parse(decodeURIComponent(escape(atob(s.trim()))));}
+
+/* ---------- save / resume a game in progress ----------
+   The engine is deterministic, so a whole game IS its seed + action log. We
+   persist that plus the current tick; resuming rebuilds the exact state by
+   replaying the log forward (silently) to that tick, then hands back control. */
+function buildSnapshot(){
+  if(!rec||!S||replayMode||S.sandbox||S.tut||S.daily||challengeTarget||S.phase!=='play')return null;
+  return {v:2,d:rec.d,s:rec.s,m:rec.m,sz:rec.sz,a:rec.a,tickN:S.tickN,t:S.t,diffName:S.diff.name};
+}
+function autoSave(){const g=buildSnapshot();if(g)saveGame(g);}
+function refreshContinue(){
+  const g=loadGame();
+  if(el.btnContinue)el.btnContinue.classList.toggle('hide',!g);
+  if(g&&el.contMeta)el.contMeta.textContent=(g.diffName||g.d||'sector')+(g.t!==undefined?' · '+fmtT(g.t):'')+' — in progress';
+}
+function resumeGame(){
+  const g=loadGame();
+  if(!g){refreshContinue();return;}
+  initAudio();
+  challengeTarget=null;
+  startGame(g.d,g.s,{mods:g.m||{},sizeIdx:(g.sz!==undefined?g.sz:2)});   // fresh deterministic game (clears the slot)
+  const wasMuted=muted; setMutedState(true);                            // silence the fast-forward
+  replayQ={a:g.a,i:0};
+  const target=g.tickN|0; let guard=0;
+  while(S.tickN<target && guard++<500000){pumpReplay();tick();}
+  pumpReplay();                                                          // flush actions at the live edge
+  replayQ=null; setReplayMode(false); setMutedState(wasMuted);
+  rec={v:2,d:g.d,s:g.s,m:g.m,sz:g.sz,a:g.a.slice()};                     // keep recording onward
+  if(S.msgs)S.msgs.length=0;
+  setShake(0); cam.x=0; cam.y=0; cam.z=1; setPaused(false);
+  el.menu.classList.remove('show'); el.end.classList.remove('show'); el.btnResume.classList.add('hide');
+  banner(false); updateInfo(true);
+  saveGame(buildSnapshot()||g);                                         // re-persist right away
+  msg('Sector restored — carry on, Commander.','#ffd27f');
+}
 
 /* ---------- guided first mission (tutorial coach) ----------
    A render-side state machine: each step shows a coach card and either
@@ -336,21 +372,7 @@ export function updateInfo(force){
       ?'Tap to preview · tap again to place. Drag to chain-build.'
       :'Click the map to place, or drag to chain-build a line. Right-click to cancel.')+'</span>';
   }else if(sel && sel.alive){
-    const T=TYPES[sel.type];
-    html='<b>'+T.name+'</b><br>HP '+Math.ceil(sel.hp)+' / '+T.hp;
-    if(!sel.built)html+='<br>Building… '+sel.buildGot+' / '+T.cost;
-    if(T.ammoMax)html+='<br>Ammo '+Math.floor(sel.ammo)+' / '+T.ammoMax;
-    if((sel.type==='nullifier'||sel.type==='convert')&&!sel.fired)html+='<br>Charge '+sel.charge+' / '+T.charge;
-    if(sel.type==='shield'&&sel.built)html+='<br>'+(sel.active?'<span style="color:#8fe8ff">ACTIVE — pushing Flux</span>':'<span class="bad">UNPOWERED</span>');
-    if(sel.type==='terra'&&sel.built){
-      html+='<br>Jobs '+sel.tjobs.length;
-      html+='<br><span class="dim">'+(TOUCH
-        ?'Tap/drag ground in range to paint level L'+terraTarget+'. Use − / + below.'
-        :'Click/drag ground in range to paint level L'+terraTarget+'. Keys [ and ] set level.')+'</span>';
-    }
-    if(sel.moving)html+='<br><span class="dim">Relocating…</span>';
-    else if(MOVABLE[sel.type]&&sel.built)html+='<br><span class="dim">'+(TOUCH?'Tap it again to relocate.':'Click it again to relocate.')+'</span>';
-    if(!sel.conn&&!sel.moving)html+='<br><span class="bad">DISCONNECTED</span>';
+    html=selPanel(sel);
   }else{
     html=TOUCH
       ?'Pick a structure below, then tap the map. Pinch to zoom, drag to pan. Hunt the Emitters with Nullifiers.'
@@ -372,6 +394,43 @@ export function updateInfo(force){
 }
 let lastTerraId=-1;
 function row(k,v){return '<div class="r"><span>'+k+'</span><span>'+v+'</span></div>';}
+/* rich selected-structure panel: bars + live stats + a plain-language status
+   line + recycle / relocate buttons (wired by delegation on #info) */
+function mbar(frac,col){return '<div class="mbar"><i style="width:'+(clamp(frac,0,1)*100).toFixed(0)+'%;background:'+col+'"></i></div>';}
+function selPanel(b){
+  const T=TYPES[b.type], shot=T.shotCost||1;
+  let h='<div class="spHead"><b>'+T.name+'</b>';
+  if(b.type!=='core'&&!b.moving)h+='<button class="spBtn" data-act="recycle" title="Recycle for a refund">♺ scrap</button>';
+  h+='</div>';
+  h+='<div class="spRow"><span>HEALTH</span><span>'+Math.ceil(b.hp)+' / '+T.hp+'</span></div>'
+    +mbar(b.hp/T.hp, b.hp<T.hp*0.35?'#ff6e6e':(b.hp<T.hp*0.7?'#ffba5c':'#4df0c8'));
+  if(!b.built)h+='<div class="spRow"><span>BUILDING</span><span>'+b.buildGot+' / '+T.cost+'</span></div>'+mbar(b.buildGot/T.cost,'#6fb7ff');
+  if(T.ammoMax)h+='<div class="spRow"><span>AMMO</span><span>'+Math.floor(b.ammo)+' / '+T.ammoMax+'</span></div>'
+    +mbar(b.ammo/T.ammoMax, b.ammo<shot?'#ffba5c':'#74e6a8');
+  if((b.type==='nullifier'||b.type==='convert')&&!b.fired)h+='<div class="spRow"><span>CHARGE</span><span>'+b.charge+' / '+T.charge+'</span></div>'+mbar(b.charge/T.charge,'#b66bff');
+  // live stat line
+  const st=[];
+  if(b.type==='collector')st.push('+'+(0.003*b.cov*(b.pz?3:1)).toFixed(2)+' e/s · '+b.cov+' cells');
+  else if(T.prod)st.push('+'+(T.prod*(b.pz&&b.type==='reactor'?6:1)).toFixed(1)+' e/s');
+  if(T.range)st.push('range '+(T.range*(b.reso?1.4:1)*(b.pz?1.3:1)).toFixed(0));
+  if(T.cap)st.push('+'+(T.cap*(b.pz?3:1))+' cap');
+  if(T.linkR)st.push('link '+(b.pz?(T.linkR*1.5).toFixed(0):T.linkR));
+  if(st.length)h+='<div class="spStat">'+st.join('  ·  ')+'</div>';
+  if(b.pz)h+='<div class="spStat" style="color:#ffd86b">★ POWER ZONE — boosted</div>';
+  if(b.reso&&!b.pz)h+='<div class="spStat" style="color:#b9a3ff">↯ Resonator overcharge</div>';
+  if(b.stun>0)h+='<div class="spStat bad">⚡ STUNNED — hit by a Runner</div>';
+  // plain-language status, most urgent first
+  if(b.moving)h+='<div class="spStat dim">Relocating… (offline in flight)</div>';
+  else if(!b.conn)h+='<div class="spStat bad">⚠ DISCONNECTED — link a Collector or Relay within reach</div>';
+  else if(T.ammoMax&&b.built&&b.ammo<shot)h+='<div class="spStat bad">Out of ammo — raise supply (P) or add reserves</div>';
+  else if(b.type==='shield'&&b.built&&!b.active)h+='<div class="spStat bad">Unpowered — not enough energy to run</div>';
+  else if(!b.built)h+='<div class="spStat dim">Awaiting packets…</div>';
+  else h+='<div class="spStat" style="color:#7be3a8">● Connected &amp; operational</div>';
+  // contextual controls
+  if(b.type==='terra'&&b.built)h+='<div class="dim" style="margin-top:5px">Jobs '+b.tjobs.length+' · painting <b>L'+terraTarget+'</b> — [ and ] change, click/drag ground in range</div>';
+  if(!b.moving&&MOVABLE[b.type]&&b.built)h+='<button class="spBtn wide" data-act="move">✥ RELOCATE</button>';
+  return h;
+}
 function rankOf(won){
   if(!won)return 'F';
   const t=S.t, lost=S.stats.lost;
@@ -397,6 +456,7 @@ function computeUnlocks(won){
   return u;
 }
 export function showEnd(won){
+  clearGame();                       // the run is over — drop the resume slot
   const rank=rankOf(won);
   el.endRank.textContent=rank;
   el.endRank.className='rank'+rank;
@@ -972,7 +1032,7 @@ function init(){
   const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','sBloom','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow',
     'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip','tutNext','tutHint',
     'sTips','btnResetTips','tipCard','tipName','tipBody','tipClose',
-    'energyBar','alerts','keys','btnKeysClose'];
+    'energyBar','alerts','keys','btnKeysClose','btnContinue','contMeta','sFps','fps'];
   for(const id of ids)el[id]=document.getElementById(id);
   // categories live behind icon tabs so the palette stays compact
   VCATS.forEach(function(cat,ci){
@@ -990,6 +1050,8 @@ function init(){
   el.sShake.checked=settings.shake; el.sCb.checked=settings.colorblind;
   if(el.sBloom)el.sBloom.checked=settings.bloom;
   if(el.sTips)el.sTips.checked=settings.tips;
+  if(el.sFps)el.sFps.checked=settings.fps;
+  if(el.fps)el.fps.classList.toggle('hide',!settings.fps);
   function onSetting(){
     settings.musicVol=parseFloat(el.sMusic.value);
     settings.sfxVol=parseFloat(el.sSfx.value);
@@ -997,6 +1059,7 @@ function init(){
     settings.colorblind=el.sCb.checked;
     if(el.sBloom)settings.bloom=el.sBloom.checked;
     if(el.sTips)settings.tips=el.sTips.checked;
+    if(el.sFps){settings.fps=el.sFps.checked;if(el.fps)el.fps.classList.toggle('hide',!settings.fps);}
     applyVolumes(); saveSettings();
   }
   el.sMusic.addEventListener('input',function(){initAudio();onSetting();});
@@ -1020,6 +1083,8 @@ function init(){
     el.achCount.textContent=achCount()+' / '+ACHIEVEMENTS.length;
   }
   refreshMenuMeta();
+  refreshContinue();
+  if(typeof window!=='undefined')window.addEventListener('beforeunload',autoSave);
   el.btnAch.addEventListener('click',function(){
     el.achList.innerHTML=ACHIEVEMENTS.map(function(a){
       const got=hasAch(a.id);
@@ -1114,17 +1179,19 @@ function init(){
   document.getElementById('bl_normal').textContent=DIFFS.normal.blurb;
   document.getElementById('bl_hard').textContent=DIFFS.hard.blurb;
   document.getElementById('bl_insane').textContent=DIFFS.insane.blurb;
+  if(el.btnContinue)el.btnContinue.addEventListener('click',function(){resumeGame();});
   el.btnAgain.addEventListener('click',function(){
     el.end.classList.remove('show');
     el.menu.classList.add('show');
     el.btnResume.classList.add('hide');
-    refreshMenuMeta();
+    refreshMenuMeta(); refreshContinue();
     setS(null); banner(false); updateInfo(true);
   });
   el.btnMenu.addEventListener('click',function(){
     if(!S || S.phase==='menu')return;
     sfx('uiclick');
     setPaused(true);
+    autoSave(); refreshContinue();          // opening the menu mid-game banks your progress
     el.btnResume.classList.remove('hide');
     el.menu.classList.add('show');
   });
@@ -1139,6 +1206,17 @@ function init(){
   el.btnHelpClose.addEventListener('click',function(){el.help.classList.remove('show');});
   if(el.btnKeysClose)el.btnKeysClose.addEventListener('click',function(){el.keys.classList.remove('show');});
   if(el.keys)el.keys.addEventListener('click',function(ev){if(ev.target===el.keys)el.keys.classList.remove('show');});
+  // selected-structure panel buttons (recycle / relocate) via event delegation
+  if(el.info)el.info.addEventListener('click',function(ev){
+    const t=ev.target, act=t&&t.getAttribute&&t.getAttribute('data-act');
+    if(!act||!S||S.phase!=='play'||replayMode||!sel||!sel.alive)return;
+    if(act==='recycle'){
+      if(sel.type==='core'||sel.moving)return;
+      recAct('D',sel.id); deconstruct(S,sel); setSel(null); sfx('uiclick'); updateInfo(true);
+    }else if(act==='move'&&MOVABLE[sel.type]&&sel.built&&!sel.moving){
+      setMoveSrc(sel); sfx('uiclick'); updateInfo(true);
+    }
+  });
   el.btnPause.addEventListener('click',function(){if(S&&S.phase!=='menu')setPaused(!paused);});
   el.btnMute.addEventListener('click',function(){initAudio();setMuted(!muted);});
   el.spd1.addEventListener('click',function(){setSpeed(1);});
@@ -1167,7 +1245,19 @@ function init(){
   updateInfo(true);
   requestAnimationFrame(frame);
 }
-let lastFrame=performance.now(), acc=0;
+let fpsAcc=0, fpsN=0, fpsLast=0, fpsPrev=0;
+function drawFps(now){               // rolling FPS readout — lets you measure perf on big maps
+  if(!el.fps||!settings.fps)return;
+  const dt=now-fpsPrev; fpsPrev=now;
+  if(dt>0&&dt<1000){fpsAcc+=dt;fpsN++;}
+  if(now-fpsLast>500){
+    const fps=fpsN?Math.round(1000/(fpsAcc/fpsN)):0;
+    el.fps.textContent=fps+' fps';
+    if(el.fps.classList)el.fps.classList.toggle('bad',fps<45);
+    fpsAcc=0; fpsN=0; fpsLast=now;
+  }
+}
+let lastFrame=performance.now(), acc=0, lastSave=0;
 function frame(now){
   requestAnimationFrame(frame);
   let dt=(now-lastFrame)/1000;
@@ -1179,9 +1269,11 @@ function frame(now){
     const cap=speed>=8?24:12;                 // allow 8× to run more sim ticks per frame
     while(acc>=TICK && n<cap){pumpReplay();tick();acc-=TICK;n++;}
     if(n>=cap)acc=0;
+    if(now-lastSave>8000){lastSave=now;autoSave();}   // periodic resume checkpoint
   }
   render();
   if(S&&S.tut)tutCheck();
   else if(el.tutCard&&!el.tutCard.classList.contains('hide'))el.tutCard.classList.add('hide');
+  drawFps(now);
 }
 window.addEventListener('load',init);
