@@ -600,6 +600,19 @@ function zoomAt(f,sx,sy){
   cam.x=wx-sx/cam.z; cam.y=wy-sy/cam.z;
   clampCam();
 }
+// keyboard camera: WASD / arrow keys pan (held → smooth, applied each frame)
+const PAN_DIR={w:'u',s:'d',a:'l',d:'r',arrowup:'u',arrowdown:'d',arrowleft:'l',arrowright:'r'};
+const camHeld=new Set();
+function applyCamKeys(dt){
+  if(!S||S.phase==='menu'||!camHeld.size)return;
+  let dx=0,dy=0;
+  if(camHeld.has('u'))dy--; if(camHeld.has('d'))dy++;
+  if(camHeld.has('l'))dx--; if(camHeld.has('r'))dx++;
+  if(!dx&&!dy)return;
+  const sp=950*Math.min(dt,0.05)/cam.z;          // constant on-screen speed at any zoom
+  cam.x+=dx*sp; cam.y+=dy*sp;
+  clampCam();
+}
 
 /* ---------- input ---------- */
 function screenPos(ev){
@@ -943,6 +956,11 @@ function onKey(ev){
   const k=ev.key;
   if(k==='?'||(k==='/'&&ev.shiftKey)){if(el.keys)el.keys.classList.toggle('show');return;}
   if(k==='Escape'&&el.keys&&el.keys.classList.contains('show')){el.keys.classList.remove('show');return;}
+  // camera: WASD / arrow keys pan, + / - zoom (centred on the view)
+  const pk=PAN_DIR[k.toLowerCase()];
+  if(pk){camHeld.add(pk); if(k.indexOf('Arrow')===0)ev.preventDefault(); return;}
+  if(k==='+'||k==='='){if(S&&S.phase!=='menu')zoomAt(1.18,W/2,H/2);return;}
+  if(k==='-'||k==='_'){if(S&&S.phase!=='menu')zoomAt(1/1.18,W/2,H/2);return;}
   if(k===' '){
     ev.preventDefault();
     if(S && S.phase!=='menu')setPaused(!paused);
@@ -1239,6 +1257,8 @@ function init(){
   // suppress the browser right-click menu everywhere in the game (panel etc.)
   window.addEventListener('contextmenu',function(ev){ev.preventDefault();});
   window.addEventListener('keydown',onKey);
+  window.addEventListener('keyup',function(ev){const d=PAN_DIR[ev.key.toLowerCase()];if(d)camHeld.delete(d);});
+  window.addEventListener('blur',function(){camHeld.clear();});   // stop drifting if focus is lost
   window.addEventListener('resize',updateUiScale);
   window.addEventListener('orientationchange',updateUiScale);
   setMuted(false); setSpeed(1); setPaused(false);
@@ -1271,6 +1291,7 @@ function frame(now){
     if(n>=cap)acc=0;
     if(now-lastSave>8000){lastSave=now;autoSave();}   // periodic resume checkpoint
   }
+  applyCamKeys(dt);                                   // WASD / arrow-key camera pan
   render();
   if(S&&S.tut)tutCheck();
   else if(el.tutCard&&!el.tutCard.classList.contains('hide'))el.tutCard.classList.add('hide');
