@@ -133,6 +133,18 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
 #hud .vl{text-align:right;font-weight:700;text-shadow:0 0 10px rgba(77,240,200,.15)}
 .bar{grid-column:1/-1;height:5px;background:#0a111d;border:1px solid #16243a;border-radius:3px;overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2dd4a8,#4df0c8);transition:width .25s ease,background .3s}
+.bar.low{border-color:#ff6e6e;animation:barLow 1s ease-in-out infinite}
+@keyframes barLow{0%,100%{box-shadow:0 0 0 rgba(255,110,110,0)}50%{box-shadow:0 0 11px rgba(255,110,110,.75)}}
+/* persistent alert strip: incoming/active threats at a glance */
+#alerts{display:flex;flex-wrap:wrap;gap:5px}
+#alerts.hide{display:none}
+.al{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.5px;
+  padding:3px 8px;border-radius:6px;border:1px solid;animation:alPulse 1.5s ease-in-out infinite;white-space:nowrap}
+.al .ai{font-size:11px}
+.al.warn{color:#ffd27f;border-color:rgba(255,210,127,.5);background:rgba(255,210,127,.1)}
+.al.bad{color:#ff8d7a;border-color:rgba(255,141,122,.55);background:rgba(255,141,122,.13)}
+.al.info{color:#9fd0ff;border-color:rgba(159,208,255,.45);background:rgba(159,208,255,.1)}
+@keyframes alPulse{0%,100%{opacity:1}50%{opacity:.6}}
 #topRow{display:flex;flex-direction:column;gap:10px}
 #miniWrap{
   background:linear-gradient(180deg,#0c1420,#0a0f1a);border:1px solid #1f2f46;border-radius:10px;
@@ -184,7 +196,21 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
 .bbtn.on{border-color:var(--acc);background:linear-gradient(180deg,#11271f,#0d1f1a);box-shadow:0 0 14px rgba(77,240,200,.25)}
 .bbtn.on::before{opacity:1;box-shadow:0 0 8px var(--acc)}
 .bbtn.on .nm{color:var(--acc)}
-.bbtn.poor{opacity:.5}.bbtn.poor .ct{color:var(--bad)}
+.bbtn.poor{opacity:.45;filter:grayscale(.4)}.bbtn.poor .ct{color:var(--bad)}
+/* keyboard cheat-sheet grid (? overlay) */
+.keyGrid{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;margin:6px 0 4px;
+  text-align:left;font-size:12.5px;color:var(--mut)}
+.keyGrid .kk{font:700 11px/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--acc);
+  border:1px solid var(--line);background:#0a111d;border-radius:5px;padding:4px 7px;text-align:center;white-space:nowrap}
+/* ---- polish & accessibility ---- */
+.cbtn,.bbtn,.diff,.tab,.big,.szb,.miniBtn,#tutNext,#tipClose,#tutSkip{
+  transition:border-color .14s,background .14s,box-shadow .14s,color .14s,transform .12s,opacity .14s}
+.cbtn:active,.bbtn:active,.big:active,.diff:active{transform:translateY(1px) scale(.985)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
 #bb_collector .ic{color:#74e6a8}#bb_collector::before{background:#74e6a8}
 #bb_relay .ic{color:#6fb7ff}#bb_relay::before{background:#6fb7ff}
 #bb_reactor .ic{color:#ffd86b}#bb_reactor::before{background:#ffd86b}
@@ -520,9 +546,35 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
           <li><b>Economy:</b> Pylons speed packets across the network · Guppy Pads air-link distant outposts · build a Harvester on a purple Aether Node for extra Forge tech.</li>
           <li><b>Support:</b> Repair Bays mend nearby structures · Resonators overcharge adjacent weapons (but draw Spores) · Sensor Towers scout · Inhibitors slow Flux to a crawl in a zone · the <b>Siphon</b> sits ON deep Flux and drains it into energy.</li>
           <li><b>Touch:</b> tap to preview, tap again to confirm. Pinch (or scroll) to zoom, drag to pan.</li>
+          <li>Press <b>?</b> anytime for a one-screen <b>keyboard cheat-sheet</b>.</li>
         </ul>
         <p class="tag" style="margin:10px 0 0;font-size:11px;text-align:center">FLUX<b style="color:var(--acc)">FRONT</b> &#8212; designed &amp; built <span class="byline" style="margin:0">By iModhish</span></p>
         <button class="big" id="btnHelpClose">CLOSE</button>
+      </div>
+    </div>
+
+    <div id="keys" class="overlay">
+      <div class="panelBox">
+        <h2 class="endT" style="color:var(--acc)">KEYBOARD &amp; CONTROLS</h2>
+        <div class="keyGrid">
+          <span class="kk">1&#8211;0</span><span>Build first ten structures</span>
+          <span class="kk">C N V B</span><span>Cryo &#183; Sniper &#183; Strafer &#183; Shield</span>
+          <span class="kk">K J</span><span>Converter &#183; Bomber</span>
+          <span class="kk">click / drag</span><span>Place &#183; drag to chain-build a line</span>
+          <span class="kk">X</span><span>Recycle mode (box-drag / double-click cluster)</span>
+          <span class="kk">G</span><span>Move mode (box-select weapons, then a destination)</span>
+          <span class="kk">[ &nbsp; ]</span><span>Terp target level down / up</span>
+          <span class="kk">P</span><span>Supply priority (balanced / weapons / build)</span>
+          <span class="kk">T</span><span>Toggle every weapon range ring</span>
+          <span class="kk">Space</span><span>Pause</span>
+          <span class="kk">F</span><span>Cycle speed &#215;1 / 2 / 4 / 8</span>
+          <span class="kk">M</span><span>Mute</span>
+          <span class="kk">R</span><span>Record a webm clip</span>
+          <span class="kk">H</span><span>Full field manual</span>
+          <span class="kk">Esc / RMB</span><span>Cancel selection or mode</span>
+          <span class="kk">scroll / pinch</span><span>Zoom &#183; drag empty ground to pan</span>
+        </div>
+        <button class="big" id="btnKeysClose">CLOSE &#8212; press ? to toggle</button>
       </div>
     </div>
   </div>
@@ -532,7 +584,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
     <div id="topRow">
       <div id="hud">
         <span class="lb">ENERGY</span><span class="vl" id="hudEnergy">0 / 0</span>
-        <div class="bar"><i id="energyFill"></i></div>
+        <div class="bar" id="energyBar"><i id="energyFill"></i></div>
         <span class="lb">FLOW</span><span class="vl" id="hudRate">+0.0/s</span>
         <span class="lb">FLUX</span><span class="vl" id="hudFlux">&#215;1.00</span>
         <span class="lb">TIME</span><span class="vl" id="hudTime">0:00</span>
@@ -545,6 +597,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
         <canvas id="mini" width="208" height="130"></canvas>
       </div>
     </div>
+    <div id="alerts" class="hide"></div>
     <div id="ctrl">
       <button class="cbtn on" id="spd1">1&#215;</button>
       <button class="cbtn" id="spd2">2&#215;</button>

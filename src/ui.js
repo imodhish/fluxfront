@@ -25,12 +25,27 @@ const HK={cryo:'C',sniper:'N',strafer:'V',shield:'B',convert:'K',bomber:'J'};
 const SHORT={terra:'Terp',convert:'Converter',harvester:'Harvester',resonator:'Resonator',inhibitor:'Inhibitor',sensor:'Sensor',repair:'Repair Bay'};
 const VCATS=CATEGORIES.filter(c=>c.keys.some(k=>TYPES[k]));
 let buildTabIdx=0;
+/* compact stat line for a build button's hover tooltip */
+function tipStats(key){
+  const T=TYPES[key], p=[];
+  p.push(T.cost+'e · '+(T.sz>1?T.sz+'×'+T.sz:'1×1')+' · '+T.hp+'hp');
+  if(T.prod)p.push('+'+T.prod+' e/s');
+  if(T.cap)p.push('+'+T.cap+' cap');
+  if(T.linkR)p.push('link '+T.linkR);
+  if(T.range)p.push('range '+T.range);
+  if(T.ammoMax)p.push('ammo '+T.ammoMax);
+  if(T.workR)p.push('reach '+T.workR);
+  if(T.charge)p.push(T.charge+'-packet charge');
+  return p.join('  ·  ');
+}
 function mkBtn(key){
   const T=TYPES[key]; if(!T)return;
   const i=BUILD_ORDER.indexOf(key);
   const hk=HK[key]||(i>=0&&i<9?String(i+1):(i===9?'0':''));
   const btn=document.createElement('button');
-  btn.className='bbtn'; btn.id='bb_'+key; btn.title=T.name+' — '+T.desc;
+  btn.className='bbtn'; btn.id='bb_'+key;
+  btn.title=T.name+(hk?'  ['+hk+']':'')+'\n'+tipStats(key)+'\n'+T.desc;
+  if(btn.setAttribute)btn.setAttribute('aria-label',T.name+', cost '+T.cost+' energy');
   btn.innerHTML='<span class="ic">'+T.icon+'</span><span class="nm">'+(SHORT[key]||T.name)+'</span><span class="ct">'+T.cost+'e</span><span class="hk">'+hk+'</span>';
   btn.addEventListener('click',function(){initAudio();selectBuild(key);});
   el.buildBar.appendChild(btn);
@@ -418,6 +433,31 @@ export function showEnd(won){
     extra;
   el.end.classList.add('show');
 }
+/* persistent alert strip — incoming/active threats as little chips. Rebuilds
+   the DOM only when the set (or a countdown second) changes. */
+let lastAlertSig='';
+function renderAlerts(dAmmo){
+  if(!el.alerts||!el.alerts.classList)return;
+  const A=[];   // [cls, icon, text]
+  const cd=v=>Math.max(0,Math.ceil(v-S.t));
+  if(S.coreDown)A.push(['bad','⟳','REDEPLOY CORE '+cd(S.reclaimT)+'s']);
+  else{
+    const core=S.byId.get(S.coreId);
+    if(core&&core.moving)A.push(['bad','⚠','NETWORK DOWN — core in flight']);
+    else if(core&&core.hp<core.hpMax*0.45)A.push(['bad','◈','CORE UNDER ATTACK']);
+  }
+  if(S.surge.active)A.push(['bad','⚡','SURGE ×2.5 — '+cd(S.surge.end)+'s']);
+  else if(S.surge.warned)A.push(['warn','⚡','SURGE in '+cd(S.surge.next)+'s']);
+  if(S.weather.active)A.push(['info','≈','FLUX SQUALL — '+cd(S.weather.end)+'s']);
+  else if(S.weather.warned)A.push(['info','≈','SQUALL in '+cd(S.weather.next)+'s']);
+  if(S.spores&&S.spores.length)A.push(['warn','◍','SPORE INBOUND ×'+S.spores.length]);
+  if(dAmmo>0&&S.energy<2)A.push(['warn','▽','LOW ENERGY — guns starving']);
+  const sig=A.map(a=>a[0]+a[2]).join('|');
+  if(sig===lastAlertSig)return;        // only touch the DOM when something changes
+  lastAlertSig=sig;
+  el.alerts.classList.toggle('hide',!A.length);
+  el.alerts.innerHTML=A.map(a=>'<span class="al '+a[0]+'"><span class="ai">'+a[1]+'</span>'+a[2]+'</span>').join('');
+}
 let hudT=0, lastAlarm=0, redSince=0, lastRedMsg=0;
 export function updateHUD(){
   if(!S){setIntensity(0.15);return;}
@@ -443,6 +483,8 @@ export function updateHUD(){
   }
   el.hudSupply.textContent='B'+dBuild+' · A'+dAmmo;
   el.hudSupply.style.color=(dAmmo>0&&S.energy<2)?'#ff8d7a':(dBuild+dAmmo>8?'#ffba5c':'#7be3a8');
+  if(el.energyBar&&el.energyBar.classList)el.energyBar.classList.toggle('low',dAmmo>0&&S.energy<2);
+  renderAlerts(dAmmo);
   el.btnSupply.textContent=SUPPLY_LABEL[S.supplyMode];
   let pzc=0; for(const b of S.buildings)if(b.alive&&b.pz)pzc++;
   if(pzc>(S.stats.pzPeak||0))S.stats.pzPeak=pzc;
@@ -836,7 +878,11 @@ function onWheel(ev){
   zoomAt(ev.deltaY<0?1.15:1/1.15,s[0],s[1]);
 }
 function onKey(ev){
+  const tn=(ev.target&&ev.target.tagName)||'';
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(tn))return;   // don't hijack keys while typing in a field
   const k=ev.key;
+  if(k==='?'||(k==='/'&&ev.shiftKey)){if(el.keys)el.keys.classList.toggle('show');return;}
+  if(k==='Escape'&&el.keys&&el.keys.classList.contains('show')){el.keys.classList.remove('show');return;}
   if(k===' '){
     ev.preventDefault();
     if(S && S.phase!=='menu')setPaused(!paused);
@@ -925,7 +971,8 @@ function init(){
   }
   const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','sBloom','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow',
     'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip','tutNext','tutHint',
-    'sTips','btnResetTips','tipCard','tipName','tipBody','tipClose'];
+    'sTips','btnResetTips','tipCard','tipName','tipBody','tipClose',
+    'energyBar','alerts','keys','btnKeysClose'];
   for(const id of ids)el[id]=document.getElementById(id);
   // categories live behind icon tabs so the palette stays compact
   VCATS.forEach(function(cat,ci){
@@ -1090,6 +1137,8 @@ function init(){
   });
   el.btnHelp.addEventListener('click',function(){el.help.classList.toggle('show');});
   el.btnHelpClose.addEventListener('click',function(){el.help.classList.remove('show');});
+  if(el.btnKeysClose)el.btnKeysClose.addEventListener('click',function(){el.keys.classList.remove('show');});
+  if(el.keys)el.keys.addEventListener('click',function(ev){if(ev.target===el.keys)el.keys.classList.remove('show');});
   el.btnPause.addEventListener('click',function(){if(S&&S.phase!=='menu')setPaused(!paused);});
   el.btnMute.addEventListener('click',function(){initAudio();setMuted(!muted);});
   el.spd1.addEventListener('click',function(){setSpeed(1);});
