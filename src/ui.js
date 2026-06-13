@@ -141,7 +141,7 @@ function resumeGame(){
   replayQ=null; setReplayMode(false); setMutedState(wasMuted);
   rec={v:2,d:g.d,s:g.s,m:g.m,sz:g.sz,a:g.a.slice()};                     // keep recording onward
   if(S.msgs)S.msgs.length=0;
-  setShake(0); cam.x=0; cam.y=0; cam.z=1; setPaused(false);
+  setShake(0); cam.z=1.35; cam.x=(W-W/cam.z)/2; cam.y=(H-H/cam.z)/2; setPaused(false);
   el.menu.classList.remove('show'); el.end.classList.remove('show'); el.btnResume.classList.add('hide');
   banner(false); updateInfo(true);
   saveGame(buildSnapshot()||g);                                         // re-persist right away

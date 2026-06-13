@@ -539,7 +539,10 @@ export function newGame(dk,fixedSeed,opts){
   S.buffs.dmg=0;
   prerenderTerrain(S);
   cancelModes(); setShake(0);
-  cam.x=0; cam.y=0; cam.z=1;
+  // open at a gentle tactical zoom (centred) so WASD/arrow panning works from
+  // the first frame and the terrain shows its detail — scroll out (or the
+  // minimap) gives the full overview
+  cam.z=1.35; cam.x=(W-W/cam.z)/2; cam.y=(H-H/cam.z)/2;
   setPaused(false); setSpeed(1);
   el.menu.classList.remove('show');
   el.end.classList.remove('show');
