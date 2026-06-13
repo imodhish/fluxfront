@@ -302,6 +302,12 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
 #tutCard h4{margin:0 0 4px;font-size:13px;letter-spacing:1px;color:#eaf6f2}
 #tutCard p{margin:0;font-size:12px;line-height:1.5;color:var(--mut)}
 #tutCard b{color:var(--acc);font-weight:700}
+.tutFoot{display:flex;justify-content:space-between;align-items:center;margin-top:9px;gap:8px}
+#tutHint{font-size:10px;letter-spacing:.5px;color:#8fb3c8;font-style:italic;flex:1;min-width:0}
+#tutNext{background:linear-gradient(180deg,#5ffadc,#3bd6b0);color:#06241d;border:0;border-radius:7px;
+  padding:6px 12px;font-weight:800;letter-spacing:1px;font-size:11px;cursor:pointer;white-space:nowrap;
+  box-shadow:0 2px 10px rgba(77,240,200,.3)}
+#tutNext:hover{filter:brightness(1.08)}
 .manual{padding-left:18px;color:var(--mut);font-size:12.5px;line-height:1.7;margin:8px 0 0}
 .manual li b{color:var(--ink)}
 /* ---- phones (portrait & narrow): canvas docked on top, panel scrolls below
@@ -372,9 +378,13 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
     <div id="banner" class="hide"></div>
     <div id="credit">FLUX<b>FRONT</b> &#183; By <b>iModhish</b></div>
     <div id="tutCard" class="hide">
-      <div class="tutHead"><span id="tutStepNo">1 / 6</span><button id="tutSkip">SKIP &#215;</button></div>
+      <div class="tutHead"><span id="tutStepNo">1 / 12</span><button id="tutSkip">SKIP TUTORIAL &#215;</button></div>
       <h4 id="tutTitle"></h4>
       <p id="tutBody"></p>
+      <div class="tutFoot">
+        <span id="tutHint"></span>
+        <button id="tutNext">NEXT &#9654;</button>
+      </div>
     </div>
 
     <div id="menu" class="overlay show">

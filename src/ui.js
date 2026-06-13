@@ -98,41 +98,76 @@ function encodeRun(r){return btoa(unescape(encodeURIComponent(JSON.stringify(r))
 function decodeRun(s){return JSON.parse(decodeURIComponent(escape(atob(s.trim()))));}
 
 /* ---------- guided first mission (tutorial coach) ----------
-   A render-side state machine: each step shows a coach card and advances
-   when its predicate is met. It only reads sim state and mutates render-only
-   fields (S.tut/S.tutStep), so determinism is untouched. Started from the
-   menu's FIRST MISSION button on a small fixed-seed EASY map. */
+   A render-side state machine: each step shows a coach card and either
+   advances automatically when its `done(st)` predicate is met (hands-on
+   ACTION steps) or waits for the NEXT button (INFO steps). It only reads
+   sim state and mutates render-only fields (S.tut/S.tutStep), so
+   determinism is untouched. Started from the menu's FIRST MISSION button
+   on a small fixed-seed EASY map. */
 const TUT_SEED=0x5f10c5;
 function tHasBuilt(st,type){for(const b of st.buildings)if(b.type===type&&b.built&&b.alive)return true;return false;}
 function tHasAny(st,type){for(const b of st.buildings)if(b.type===type&&b.alive)return true;return false;}
+/* steps with `done` are ACTION steps (auto-advance + a "skip step" Next);
+   steps without are INFO steps (read, then tap NEXT). `hint` is the little
+   italic prompt in the card footer. */
 const TUT_STEPS=[
+  {title:'WELCOME, COMMANDER',
+   body:'This is <b>FLUXFRONT</b>. The blue <b>Flux</b> is a living fluid &mdash; it pours from red <b>Emitters</b>, floods downhill and destroys anything it drowns. Your job: contain it and wipe out every Emitter.',
+   hint:'Read along and tap NEXT &mdash; I’ll walk you through it.'},
   {title:'DEPLOY YOUR CORE',
-   body:'Click a flat, green landing site to drop your <b>Command Core</b>. The Flux stays frozen until you land &mdash; take your time.',
+   body:'Everything starts with your <b>Command Core</b>. Click a flat, <b>green</b> landing site to drop it. The Flux stays completely frozen until you land &mdash; take your time and look around.',
+   hint:'Click flat ground to deploy.',
    done:st=>st.phase==='play'},
+  {title:'ENERGY & PACKETS',
+   body:'See the <b>ENERGY</b> bar up top. Your Core ships glowing <b>energy packets</b> out along your network to build and arm everything. Watch them flow once you start building.',
+   hint:'Energy is everything. Tap NEXT.'},
   {title:'HARVEST ENERGY',
-   body:'Press <b>1</b> for the Collector, then click flat ground near your Core. <b>Collectors</b> claim territory and turn it into energy.',
+   body:'Press <b>1</b> to pick the <b>Collector</b>, then click flat ground near your Core. Collectors claim the surrounding territory and turn it into steady income &mdash; the more ground, the more energy.',
+   hint:'Press 1, then place a Collector.',
    done:st=>tHasBuilt(st,'collector')},
+  {title:'THE NETWORK',
+   body:'<b>Collectors</b> and <b>Relays</b> are <b>backbones</b> &mdash; the only structures others can link through. Anything off the network waits as a dim ghost until a backbone reaches it. <b>No link, no power.</b>',
+   hint:'Reach is power. Tap NEXT.'},
   {title:'EXTEND YOUR REACH',
-   body:'Press <b>2</b> for the Relay and place it out toward the open map. <b>Relays</b> carry your network &mdash; and energy &mdash; much farther.',
+   body:'Press <b>2</b> for the <b>Relay</b> and place it out toward open ground. Relays have a long link radius &mdash; they stretch your network across the map so you can build near the Flux.',
+   hint:'Press 2, then place a Relay.',
    done:st=>tHasAny(st,'relay')},
+  {title:'READ THE LAND',
+   body:'Structures need <b>flat ground</b> &mdash; the whole footprint on one level. <b>Height is defense</b>: Flux pools low, so hold the ridges. Hover any cell for its level and Flux depth; the <b>THREAT</b> bar shows how much map the Flux holds.',
+   hint:'High ground buys time. Tap NEXT.'},
   {title:'HOLD THE LINE',
-   body:'The blue Flux is rising. Press <b>6</b> for the Cannon and place it facing the Flux to burn it back. Cannons spend energy as ammo.',
+   body:'The Flux is creeping in. Press <b>6</b> for the <b>Cannon</b> and place it facing the blue tide to burn it back. Cannons fire automatically at shallow Flux in range.',
+   hint:'Press 6, then place a Cannon.',
    done:st=>tHasAny(st,'cannon')},
-  {title:'WIN THE SECTOR',
-   body:'To win you must destroy every <b>Emitter</b>. Press <b>0</b> for the Nullifier, place it within range of a red Emitter, then feed it 20 packets.',
+  {title:'AMMO & SUPPLY',
+   body:'Weapons spend energy as <b>ammo</b> &mdash; a Cannon with no supply goes quiet. The <b>SUPPLY</b> row shows who’s waiting (B = build, A = ammo). Press <b>P</b> to favour weapons, construction, or a balanced split.',
+   hint:'Keep the guns fed. Tap NEXT.'},
+  {title:'HOW YOU WIN',
+   body:'You can’t out-shoot the Flux forever &mdash; you must kill the source. The <b>Nullifier</b> charges up, fires once, and erases every Emitter in range. Clear them all and the Flux dies with them.',
+   hint:'Destroy the Emitters to win. Tap NEXT.'},
+  {title:'CHARGE A NULLIFIER',
+   body:'Press <b>0</b> for the <b>Nullifier</b> and place it within range of a red <b>Emitter</b> (it needs one nearby). Then keep it supplied &mdash; it swallows 20 packets, then fires.',
+   hint:'Press 0, place it by an Emitter.',
    done:st=>tHasAny(st,'nullifier')},
-  {title:'FINISH STRONG',
-   body:'Your Nullifier is charging &mdash; hold on until it fires and erases the Emitter. You know the basics now, Commander. Clear the sector!',
-   done:st=>st.phase==='won'||st.phase==='lost', last:true}
+  {title:'FINISH THE SECTOR',
+   body:'Your Nullifier is charging &mdash; defend it until the beam fires and the Emitter is gone. That’s the whole loop: <b>expand, defend, nullify.</b> You’ve got this, Commander &mdash; clear the map!',
+   hint:'Good luck out there.',
+   last:true}
 ];
 let tutShown=-1;
 function endTutorial(){if(S)S.tut=false;tutShown=-1;if(el.tutCard)el.tutCard.classList.add('hide');}
+function tutAdvance(){            // NEXT button: step forward, or finish on the last card
+  if(!S||!S.tut)return;
+  const s=TUT_STEPS[S.tutStep|0];
+  if(!s||s.last){endTutorial();return;}
+  S.tutStep=(S.tutStep|0)+1; sfx('uiclick'); tutShown=-1;
+}
 function tutCheck(){
   const card=el.tutCard;
   if(!card)return;
   if(!S||!S.tut||S.phase==='menu'){card.classList.add('hide');return;}
   const cur=TUT_STEPS[S.tutStep|0];
-  if(cur&&cur.done(S)){
+  if(cur&&cur.done&&cur.done(S)){          // hands-on step completed → auto-advance
     if(cur.last){endTutorial();return;}
     S.tutStep=(S.tutStep|0)+1; sfx('uiclick');
   }
@@ -143,6 +178,8 @@ function tutCheck(){
     if(el.tutStepNo)el.tutStepNo.textContent=((S.tutStep|0)+1)+' / '+TUT_STEPS.length;
     if(el.tutTitle)el.tutTitle.innerHTML=s.title;
     if(el.tutBody)el.tutBody.innerHTML=s.body;
+    if(el.tutHint)el.tutHint.innerHTML=s.hint||'';
+    if(el.tutNext)el.tutNext.innerHTML=s.last?'FINISH ✓':(s.done?'SKIP STEP ▶':'NEXT ▶');
     tutShown=S.tutStep;
   }
 }
@@ -843,7 +880,7 @@ function init(){
     mini.addEventListener('pointercancel',onMiniUp);
   }
   const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','sBloom','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow',
-    'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip'];
+    'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip','tutNext','tutHint'];
   for(const id of ids)el[id]=document.getElementById(id);
   // categories live behind icon tabs so the palette stays compact
   VCATS.forEach(function(cat,ci){
@@ -908,6 +945,7 @@ function init(){
     msg('First Mission — follow the coaching card. You can SKIP anytime.','#9fd0ff');
   });
   if(el.tutSkip)el.tutSkip.addEventListener('click',endTutorial);
+  if(el.tutNext)el.tutNext.addEventListener('click',tutAdvance);
   document.getElementById('diff_easy').addEventListener('click',diffStart('easy'));
   document.getElementById('diff_normal').addEventListener('click',diffStart('normal'));
   document.getElementById('diff_hard').addEventListener('click',diffStart('hard'));
