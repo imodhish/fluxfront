@@ -94,6 +94,7 @@ export function startGame(dk,seed,opts){
   setGhost(null); setReplayMode(false); replayQ=null;
   challengeTarget=(opts&&opts.challenge)||null;
   rec=(opts&&opts.sandbox)?null:{v:2,d:dk,s:S.seed,m:(opts&&opts.mods)||{},sz:sizeIdx,a:[]};
+  chrono=CHRONO_MAX; clearSnapshots(); rewinding=false;
 }
 function applyAct(a){
   const op=a[1];
@@ -145,7 +146,85 @@ function resumeGame(){
   el.menu.classList.remove('show'); el.end.classList.remove('show'); el.btnResume.classList.add('hide');
   banner(false); updateInfo(true);
   saveGame(buildSnapshot()||g);                                         // re-persist right away
+  chrono=CHRONO_MAX; clearSnapshots();
   msg('Sector restored — carry on, Commander.','#ffd27f');
+}
+
+/* ---------- Tactical Rewind ("Chrono") ----------
+   The sim is a pure function of seed + action log, so we can scrub time
+   backward: keep a ring of full-state snapshots and restore an earlier one
+   while a key is held, then commit — discarding actions that came after and
+   truncating the recorded log so replays stay clean. A limited chrono budget
+   (UI-side, never inside S, so it can't be rewound back) gates the power. */
+const CHRONO_MAX=12;                 // seconds of rewind budget
+const SNAP_TICKS=15;                 // snapshot cadence (0.5 game-seconds)
+const SNAP_KEEP=Math.ceil(CHRONO_MAX/(SNAP_TICKS/30))+3;
+let snaps=[], lastSnapTick=-999, lastSnapReal=0, lastRestoredTick=-1;
+let chrono=CHRONO_MAX, rewinding=false, rewindTick=0;
+function cloneSim(s){
+  const o={};
+  for(const k in s){
+    if(k==='byId'||k==='diff')continue;            // rebuilt / immutable config
+    const v=s[k];
+    if(k==='rng'){o.rng=s.rng.state();continue;}
+    if(v==null){o[k]=v;continue;}
+    if(ArrayBuffer.isView(v)){o[k]=v.slice();continue;}
+    if(typeof v==='object'){o[k]=structuredClone(v);continue;}
+    o[k]=v;
+  }
+  return o;
+}
+function restoreSim(o){
+  for(const k in o){
+    const v=o[k];
+    if(k==='rng'){S.rng.setState(v);continue;}
+    if(v==null){S[k]=v;continue;}
+    if(ArrayBuffer.isView(v)){ if(S[k]&&S[k].length===v.length)S[k].set(v); else S[k]=v.slice(); continue; }
+    if(typeof v==='object'){S[k]=structuredClone(v);continue;}
+    S[k]=v;
+  }
+  S.byId=new Map(); for(const b of S.buildings)S.byId.set(b.id,b);
+  S.netDirty=true;
+}
+function rewindEligible(){return S&&S.phase==='play'&&rec&&!replayMode&&!S.sandbox;}
+function clearSnapshots(){snaps=[];lastSnapTick=-999;lastRestoredTick=-1;}
+function pushSnapshot(now){
+  if(!rewindEligible())return;
+  if(S.tickN-lastSnapTick<SNAP_TICKS)return;
+  if(now-lastSnapReal<100)return;                  // cap clone rate at high game speed
+  lastSnapTick=S.tickN; lastSnapReal=now;
+  snaps.push(cloneSim(S));
+  while(snaps.length>SNAP_KEEP)snaps.shift();
+}
+function beginRewind(){
+  if(rewinding||!rewindEligible()||chrono<0.3||snaps.length<2)return;
+  rewinding=true; rewindTick=S.tickN; lastRestoredTick=-1;
+  setSelBuild(null); setSel(null); setDelMode(false); setMoveMode(false); setMoveSrc(null); setMarquee(null); clearArm();
+  hover.b=null;
+  if(el.rewindFx)el.rewindFx.classList.remove('hide');
+  sfx('uiclick');
+}
+function stepRewind(dt){
+  if(!rewinding)return;
+  const oldest=snaps.length?snaps[0].tickN:S.tickN;
+  const back=Math.min(chrono,3.2*Math.min(dt,0.05));      // ~3.2 game-sec rewound per real second
+  chrono-=back;
+  rewindTick=Math.max(oldest,rewindTick-back*30);
+  let snap=snaps[0];
+  for(let i=snaps.length-1;i>=0;i--){if(snaps[i].tickN<=rewindTick){snap=snaps[i];break;}}
+  if(snap.tickN!==lastRestoredTick){restoreSim(snap);lastRestoredTick=snap.tickN;}
+  if(chrono<=0.001||rewindTick<=oldest+0.01)endRewind();  // budget or history exhausted → commit here
+}
+function endRewind(){
+  if(!rewinding)return;
+  rewinding=false;
+  if(el.rewindFx)el.rewindFx.classList.add('hide');
+  if(rec)rec.a=rec.a.filter(a=>a[0]<=S.tickN);            // discard the future
+  while(snaps.length&&snaps[snaps.length-1].tickN>S.tickN)snaps.pop();
+  lastSnapTick=S.tickN; lastRestoredTick=-1; acc=0;
+  setSel(null); hover.b=null; updateInfo(true);
+  sfx('done');
+  msg('⟲ Rewound to '+fmtT(S.t)+'  ·  '+chrono.toFixed(0)+'s chrono left','#b9a3ff');
 }
 
 /* ---------- guided first mission (tutorial coach) ----------
@@ -544,6 +623,13 @@ export function updateHUD(){
   el.hudSupply.textContent='B'+dBuild+' · A'+dAmmo;
   el.hudSupply.style.color=(dAmmo>0&&S.energy<2)?'#ff8d7a':(dBuild+dAmmo>8?'#ffba5c':'#7be3a8');
   if(el.energyBar&&el.energyBar.classList)el.energyBar.classList.toggle('low',dAmmo>0&&S.energy<2);
+  if(el.chronoFill){
+    const cf=chrono/CHRONO_MAX;
+    el.chronoFill.style.width=(cf*100).toFixed(0)+'%';
+    if(el.chronoVal)el.chronoVal.textContent=Math.floor(chrono)+'s';
+    if(el.chronoBar&&el.chronoBar.classList)el.chronoBar.classList.toggle('full',cf>0.99);
+  }
+  if(rewinding&&el.rewindFill)el.rewindFill.style.width=(chrono/CHRONO_MAX*100).toFixed(0)+'%';
   renderAlerts(dAmmo);
   el.btnSupply.textContent=SUPPLY_LABEL[S.supplyMode];
   let pzc=0; for(const b of S.buildings)if(b.alive&&b.pz)pzc++;
@@ -961,6 +1047,7 @@ function onKey(ev){
   if(pk){camHeld.add(pk); if(k.indexOf('Arrow')===0)ev.preventDefault(); return;}
   if(k==='+'||k==='='){if(S&&S.phase!=='menu')zoomAt(1.18,W/2,H/2);return;}
   if(k==='-'||k==='_'){if(S&&S.phase!=='menu')zoomAt(1/1.18,W/2,H/2);return;}
+  if(k.toLowerCase()==='z'){beginRewind();return;}   // hold Z — Tactical Rewind
   if(k===' '){
     ev.preventDefault();
     if(S && S.phase!=='menu')setPaused(!paused);
@@ -1050,7 +1137,8 @@ function init(){
   const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','sBloom','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow',
     'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip','tutNext','tutHint',
     'sTips','btnResetTips','tipCard','tipName','tipBody','tipClose',
-    'energyBar','alerts','keys','btnKeysClose','btnContinue','contMeta','sFps','fps'];
+    'energyBar','alerts','keys','btnKeysClose','btnContinue','contMeta','sFps','fps',
+    'chronoVal','chronoFill','chronoBar','rewindFx','rewindFill'];
   for(const id of ids)el[id]=document.getElementById(id);
   // categories live behind icon tabs so the palette stays compact
   VCATS.forEach(function(cat,ci){
@@ -1257,7 +1345,7 @@ function init(){
   // suppress the browser right-click menu everywhere in the game (panel etc.)
   window.addEventListener('contextmenu',function(ev){ev.preventDefault();});
   window.addEventListener('keydown',onKey);
-  window.addEventListener('keyup',function(ev){const d=PAN_DIR[ev.key.toLowerCase()];if(d)camHeld.delete(d);});
+  window.addEventListener('keyup',function(ev){const lk=ev.key.toLowerCase();const d=PAN_DIR[lk];if(d)camHeld.delete(d);if(lk==='z')endRewind();});
   window.addEventListener('blur',function(){camHeld.clear();});   // stop drifting if focus is lost
   window.addEventListener('resize',updateUiScale);
   window.addEventListener('orientationchange',updateUiScale);
@@ -1283,12 +1371,16 @@ function frame(now){
   let dt=(now-lastFrame)/1000;
   lastFrame=now;
   if(dt>0.25)dt=0.25;
-  if(S && !paused && S.phase!=='menu'){
+  if(rewinding){
+    stepRewind(dt);                                   // scrubbing time backward — sim is frozen
+  }else if(S && !paused && S.phase!=='menu'){
     acc+=dt*speed;
     let n=0;
     const cap=speed>=8?24:12;                 // allow 8× to run more sim ticks per frame
     while(acc>=TICK && n<cap){pumpReplay();tick();acc-=TICK;n++;}
     if(n>=cap)acc=0;
+    pushSnapshot(now);                                // rewind history
+    if(rewindEligible())chrono=Math.min(CHRONO_MAX,chrono+dt*0.2);   // chrono regen ~ +1 per 5s
     if(now-lastSave>8000){lastSave=now;autoSave();}   // periodic resume checkpoint
   }
   applyCamKeys(dt);                                   // WASD / arrow-key camera pan

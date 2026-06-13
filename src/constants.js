@@ -62,7 +62,12 @@ export const DIFFS={
 };
 
 /* ---------- utils ---------- */
-export function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+export function mulberry32(a){
+  function r(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
+  r.state=function(){return a|0;};          // expose state so the whole sim can be snapshotted (Tactical Rewind)
+  r.setState=function(v){a=v|0;};
+  return r;
+}
 export const idx=(x,y)=>y*COLS+x;
 export const inB=(x,y)=>x>=0&&y>=0&&x<COLS&&y<ROWS;
 export const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
