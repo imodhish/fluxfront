@@ -6,7 +6,7 @@ no build step.**
 
 ## ▶ Play
 
-**[Play in your browser](https://IMODHISH.github.io/fluxfront/)** — works on desktop, tablet and mobile.
+**[Play in your browser](https://imodhish.github.io/fluxfront/)** — works on desktop, tablet and mobile.
 
 ## Running locally
 
