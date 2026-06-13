@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<meta name="mobile-web-app-capable" content="yes">
+<title>FLUXFRONT</title>
+<style>
+:root{
+  --bg:#0b0f17; --panel:#101826; --line:#1d2a3d;
+  --ink:#d7e3ee; --mut:#7e93a8; --acc:#4df0c8; --amb:#ffba5c; --bad:#ff6e6e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;overflow-x:hidden;max-width:100%}
+body{
+  background:radial-gradient(1100px 700px at 35% 20%, #0e1524 0%, var(--bg) 60%);
+  color:var(--ink);
+  font-family:ui-monospace,'Cascadia Mono','JetBrains Mono',Menlo,Consolas,monospace;
+  overscroll-behavior:none;
+  /* never highlight UI text when dragging on the canvas or panel */
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+input,textarea{-webkit-user-select:auto;user-select:auto}
+body::before{
+  content:'';position:fixed;inset:-22%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(620px 420px at 22% 28%, rgba(56,134,197,.13), transparent 62%),
+    radial-gradient(720px 520px at 78% 72%, rgba(77,240,200,.09), transparent 62%),
+    radial-gradient(520px 420px at 62% 14%, rgba(182,107,255,.08), transparent 62%);
+  animation:bgDrift 26s ease-in-out infinite alternate;
+}
+@keyframes bgDrift{
+  from{transform:translate3d(-1.5%,-1%,0) scale(1)}
+  to{transform:translate3d(1.5%,1.2%,0) scale(1.06)}
+}
+button{font-family:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:color .15s,border-color .15s,box-shadow .2s,transform .1s,background .2s}
+button:active{transform:scale(.97)}
+#app{display:flex;gap:14px;padding:14px;max-width:1720px;margin:0 auto;height:100vh;height:100dvh;align-items:stretch}
+#stage{position:relative;flex:1;min-width:0;display:flex;align-items:center;justify-content:center}
+#game{
+  width:100%;height:auto;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);
+  display:block;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);cursor:crosshair;
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  box-shadow:0 10px 44px rgba(0,0,0,.5),0 0 28px rgba(77,240,200,.05);
+}
+#banner{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:rgba(10,16,26,.88);border:1px solid var(--acc);color:var(--acc);
+  padding:8px 14px;border-radius:6px;font-size:13px;letter-spacing:.5px;
+  text-align:center;max-width:92%;pointer-events:none;
+  animation:bannerPulse 2.4s ease-in-out infinite;
+}
+@keyframes bannerPulse{
+  0%,100%{box-shadow:0 0 6px rgba(77,240,200,.2)}
+  50%{box-shadow:0 0 18px rgba(77,240,200,.5)}
+}
+.hide{display:none}
+/* block-layout scroll container: robustly centers the panel horizontally and
+   always scrolls to the top when the panel is taller than the screen */
+.overlay{
+  position:fixed;inset:0;z-index:50;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:0 0 max(20px,env(safe-area-inset-bottom));
+  background:rgba(7,10,16,.9);backdrop-filter:blur(5px);
+  scrollbar-width:thin;scrollbar-color:#2c4259 transparent;
+}
+.overlay.show{display:block}
+.overlay::-webkit-scrollbar{width:8px}
+.overlay::-webkit-scrollbar-thumb{background:#2c4259;border-radius:4px}
+.overlay::-webkit-scrollbar-track{background:transparent}
+.panelBox{
+  margin:max(20px,env(safe-area-inset-top)) auto 0;width:min(94vw,520px);
+  background:linear-gradient(165deg,#101a2c 0%,#0c1320 100%);
+  border:1px solid #22344c;border-radius:14px;
+  padding:26px 30px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6),0 0 40px rgba(77,240,200,.06),inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(6px);
+}
+.overlay.show .panelBox{animation:popIn .38s cubic-bezier(.2,1.4,.4,1)}
+@keyframes popIn{from{transform:scale(.9) translateY(10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+h1.title{
+  font-size:42px;margin:0 0 4px;letter-spacing:6px;font-weight:800;
+  background:linear-gradient(115deg,#d7e3ee 0%,#4df0c8 35%,#7fd9ff 55%,#4df0c8 75%,#d7e3ee 100%);
+  background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 14px rgba(77,240,200,.3));
+  animation:titleShine 7s linear infinite;
+}
+@keyframes titleShine{from{background-position:0% 0}to{background-position:220% 0}}
+.title b{color:transparent}
+h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px currentColor}
+.tag{color:var(--mut);margin:0 0 16px;font-size:13px}
+.diffs{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 16px}
+.diff{
+  flex:1 1 42%;background:linear-gradient(180deg,#0d1626,#0a111d);border:1px solid var(--line);border-radius:10px;
+  padding:12px 12px 10px;color:var(--ink);cursor:pointer;text-align:left;
+  font-size:14px;letter-spacing:1px;font-weight:700;
+}
+#diff_easy:hover{border-color:var(--acc);color:var(--acc);box-shadow:0 0 20px rgba(77,240,200,.22);transform:translateY(-2px)}
+#diff_normal:hover{border-color:var(--amb);color:var(--amb);box-shadow:0 0 20px rgba(255,186,92,.22);transform:translateY(-2px)}
+#diff_hard:hover{border-color:var(--bad);color:var(--bad);box-shadow:0 0 20px rgba(255,110,110,.25);transform:translateY(-2px)}
+#diff_insane:hover{border-color:#b66bff;color:#b66bff;box-shadow:0 0 22px rgba(182,107,255,.3);transform:translateY(-2px)}
+.diff small{display:block;color:var(--mut);margin-top:7px;font-size:11px;line-height:1.45;letter-spacing:0;font-weight:400}
+.ctrlNote{color:var(--mut);font-size:11.5px;line-height:1.6;margin:0}
+.ctrlNote b{color:var(--ink)}
+.noteTouch{display:none}
+#side{
+  width:232px;flex:none;display:flex;flex-direction:column;gap:10px;padding-bottom:2px;
+  overflow-y:auto;overflow-x:hidden;             /* vertical scroll only — never a horizontal bar */
+  scrollbar-width:thin;scrollbar-color:#2c4259 transparent;
+}
+#side::-webkit-scrollbar{width:7px}
+#side::-webkit-scrollbar-thumb{background:#2c4259;border-radius:4px}
+#side::-webkit-scrollbar-thumb:hover{background:#3a5774}
+#side::-webkit-scrollbar-track{background:transparent}
+/* never let panel sections compress below their content — they'd overlap.
+   min-width:0 lets flex/grid children shrink instead of forcing overflow. */
+#side>*{flex-shrink:0;min-width:0}
+#brand{font-size:20px;letter-spacing:4px;padding:2px 2px 0;font-weight:800;text-shadow:0 0 12px rgba(77,240,200,.25)}
+#brand span{color:var(--acc)}
+#hud{
+  background:linear-gradient(180deg,#121c2e,#0e1626);border:1px solid #1f2f46;border-radius:10px;
+  padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px;
+  box-shadow:0 4px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.03);
+}
+#hud .lb{color:var(--mut);letter-spacing:1px}
+#hud .vl{text-align:right;font-weight:700;text-shadow:0 0 10px rgba(77,240,200,.15)}
+.bar{grid-column:1/-1;height:5px;background:#0a111d;border:1px solid #16243a;border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2dd4a8,#4df0c8);transition:width .25s ease,background .3s}
+#topRow{display:flex;flex-direction:column;gap:10px}
+#miniWrap{
+  background:linear-gradient(180deg,#0c1420,#0a0f1a);border:1px solid #1f2f46;border-radius:10px;
+  padding:7px;box-shadow:0 4px 18px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03);
+}
+.miniHead{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;letter-spacing:2px;color:var(--acc);margin:0 1px 5px;font-weight:700}
+.miniHead span{color:var(--mut);font-weight:400;letter-spacing:0;font-size:9.5px}
+#mini{
+  display:block;width:100%;height:auto;border-radius:5px;border:1px solid #16243a;
+  background:#05080e;cursor:crosshair;touch-action:none;box-shadow:inset 0 0 18px rgba(0,0,0,.6);
+}
+#ctrl{display:flex;gap:6px;flex-wrap:wrap}
+.cbtn{
+  flex:1;background:#0e1522;border:1px solid var(--line);color:var(--mut);
+  border-radius:6px;padding:6px 2px;cursor:pointer;font-size:11.5px;white-space:nowrap;
+}
+.cbtn.on,.cbtn:hover{color:var(--acc);border-color:var(--acc);box-shadow:0 0 12px rgba(77,240,200,.15)}
+.secT{color:var(--mut);font-size:11px;letter-spacing:2px;margin-top:2px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+#buildTabs{display:flex;gap:5px}
+.tab{
+  --tc:#4df0c8;
+  flex:1;background:linear-gradient(180deg,#101826,#0b1220);border:1px solid var(--line);
+  border-radius:8px;padding:8px 2px 7px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:border-color .15s,box-shadow .15s,transform .08s;
+}
+.tab .ti{font-size:18px;line-height:1;color:var(--tc);opacity:.6;text-shadow:0 0 6px var(--tc);transition:opacity .15s}
+.tab:hover{border-color:var(--tc);transform:translateY(-1px)}
+.tab:hover .ti{opacity:.9}
+.tab.on{border-color:var(--tc);background:linear-gradient(180deg,#141b28,#0e1622);box-shadow:0 0 14px color-mix(in srgb,var(--tc) 30%,transparent)}
+.tab.on .ti{opacity:1;text-shadow:0 0 10px var(--tc)}
+#catLabel{
+  font-size:11px;letter-spacing:3px;color:var(--acc);font-weight:700;
+  margin:9px 1px 2px;display:flex;align-items:center;gap:8px;
+}
+#catLabel::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(77,240,200,.35),transparent)}
+#buildBar{display:flex;flex-direction:column;gap:5px;min-height:44px}
+.bbtn{
+  position:relative;display:flex;align-items:center;gap:9px;
+  background:linear-gradient(180deg,#101826,#0c1320);border:1px solid var(--line);border-radius:7px;color:var(--ink);
+  padding:8px 11px 8px 12px;cursor:pointer;text-align:left;overflow:hidden;
+  transition:border-color .15s,box-shadow .15s,transform .08s;
+}
+.bbtn::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc);opacity:.55}
+.bbtn:hover{border-color:#3a5774;transform:translateX(2px);box-shadow:0 3px 10px rgba(0,0,0,.3)}
+.bbtn .ic{flex:0 0 18px;color:var(--acc);font-size:17px;text-align:center;text-shadow:0 0 8px currentColor}
+.bbtn .nm{flex:1;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bbtn .ct{flex:0 0 auto;font-size:11px;color:var(--amb);font-weight:700}
+.bbtn .hk{flex:0 0 auto;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:10px;min-width:16px;text-align:center}
+.bbtn.on{border-color:var(--acc);background:linear-gradient(180deg,#11271f,#0d1f1a);box-shadow:0 0 14px rgba(77,240,200,.25)}
+.bbtn.on::before{opacity:1;box-shadow:0 0 8px var(--acc)}
+.bbtn.on .nm{color:var(--acc)}
+.bbtn.poor{opacity:.5}.bbtn.poor .ct{color:var(--bad)}
+#bb_collector .ic{color:#74e6a8}#bb_collector::before{background:#74e6a8}
+#bb_relay .ic{color:#6fb7ff}#bb_relay::before{background:#6fb7ff}
+#bb_reactor .ic{color:#ffd86b}#bb_reactor::before{background:#ffd86b}
+#bb_battery .ic{color:#b9c7d8}#bb_battery::before{background:#b9c7d8}
+#bb_terra .ic{color:#d8b46a}#bb_terra::before{background:#d8b46a}
+#bb_cannon .ic{color:#ff9d5c}#bb_cannon::before{background:#ff9d5c}
+#bb_mortar .ic{color:#ff6e6e}#bb_mortar::before{background:#ff6e6e}
+#bb_beam .ic{color:#9ffce4}#bb_beam::before{background:#9ffce4}
+#bb_sprayer .ic{color:#cfe8ff}#bb_sprayer::before{background:#cfe8ff}
+#bb_nullifier .ic{color:#cfd6ff}#bb_nullifier::before{background:#cfd6ff}
+#bb_cryo .ic{color:#bfe8ff}#bb_cryo::before{background:#bfe8ff}
+#bb_sniper .ic{color:#ffd2dd}#bb_sniper::before{background:#ffd2dd}
+#bb_strafer .ic{color:#7fd9ff}#bb_strafer::before{background:#7fd9ff}
+#bb_shield .ic{color:#8fe8ff}#bb_shield::before{background:#8fe8ff}
+#bb_convert .ic{color:#bfe8ff}#bb_convert::before{background:#bfe8ff}
+#bb_bomber .ic{color:#bfe8ff}#bb_bomber::before{background:#bfe8ff}
+#bb_pylon .ic{color:#9fd0ff}#bb_pylon::before{background:#9fd0ff}
+#bb_harvester .ic{color:#d8a0ff}#bb_harvester::before{background:#d8a0ff}
+#bb_guppy .ic{color:#7fd9ff}#bb_guppy::before{background:#7fd9ff}
+#bb_sensor .ic{color:#9ffce4}#bb_sensor::before{background:#9ffce4}
+#bb_repair .ic{color:#7be3a8}#bb_repair::before{background:#7be3a8}
+#bb_resonator .ic{color:#d8a0ff}#bb_resonator::before{background:#d8a0ff}
+#bb_siphon .ic{color:#7be3a8}#bb_siphon::before{background:#7be3a8}
+#bb_inhibitor .ic{color:#9fb8ff}#bb_inhibitor::before{background:#9fb8ff}
+#modeRow{display:flex;gap:6px}
+#btnMove,#btnDel{
+  flex:1;background:#0e1522;border:1px solid var(--line);color:var(--mut);
+  border-radius:7px;padding:9px 4px;cursor:pointer;font-size:11.5px;letter-spacing:1px;white-space:nowrap;
+}
+#btnMove:hover{color:#9fd0ff;border-color:#9fd0ff}
+#btnMove.on{color:#9fd0ff;border-color:#9fd0ff;background:#0f1d2e}
+#btnDel:hover{color:var(--bad);border-color:var(--bad)}
+#btnDel.on{color:var(--bad);border-color:var(--bad);background:#241014}
+#forge{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:linear-gradient(180deg,#1a1430,#120e22);border:1px solid #3a2c5c;border-radius:10px;padding:8px}
+#forge.hide{display:none}
+#forgeHead{grid-column:1/-1;font-size:11px;letter-spacing:2px;color:#b66bff;display:flex;justify-content:space-between;font-weight:800}
+#forgeHead span{color:#dcc8ff}
+#forge .cbtn{font-size:10px;padding:7px 2px;border-color:#3a2c5c;color:#bfa8e8}
+#forge .cbtn:hover{color:#dcc8ff;border-color:#b66bff;box-shadow:0 0 10px rgba(182,107,255,.2)}
+#mutRow{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+#mutRow label{font-size:11px;color:var(--mut);display:flex;gap:5px;align-items:center;cursor:pointer}
+#mutRow input{accent-color:#4df0c8}
+#sizeRow{display:flex;align-items:center;gap:10px;margin-top:10px}
+.rowLbl{font-size:10px;letter-spacing:2px;color:var(--mut);font-weight:700}
+#sizeBtns{display:flex;gap:5px;flex:1}
+.szb{flex:1;background:#0b1220;border:1px solid var(--line);color:var(--mut);border-radius:6px;padding:7px 2px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:1px}
+.szb:hover{border-color:var(--acc);color:var(--acc)}
+.szb.on{border-color:var(--acc);color:#06241d;background:var(--acc)}
+#metaRow{margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--mut)}
+#records{color:#7fd9ff}
+#achRow{display:flex;align-items:center;gap:8px}
+#achCount{color:#b66bff;font-weight:700}
+#settings{margin-top:10px;font-size:11px;color:var(--mut)}
+#settings summary{cursor:pointer;letter-spacing:2px;color:var(--ink);padding:4px 0}
+.setGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;padding:8px 2px}
+.setGrid label{display:flex;align-items:center;gap:8px;font-size:11px}
+.setGrid input[type=range]{flex:1;accent-color:#4df0c8}
+.setGrid .ck{cursor:pointer}
+.setGrid .ck input{accent-color:#4df0c8}
+#achList{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;max-height:50vh;overflow:auto}
+.achItem{display:flex;justify-content:space-between;gap:12px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px}
+.achItem.got{border-color:#b66bff;background:#19132a}
+.achItem.got .an{color:#dcc8ff}
+.achItem .an{color:var(--ink);font-weight:700}
+.achItem .ad{color:var(--mut);font-size:11px}
+.achItem.locked{opacity:.5}
+#terraBar{display:flex;gap:6px;align-items:center}
+#terraBar.hide{display:none}
+#terraBar .cbtn{flex:0 0 44px;font-size:15px;padding:8px 2px}
+#tLevel{flex:1;text-align:center;font-weight:800;font-size:15px;color:#ffd86b;text-shadow:0 0 10px rgba(255,216,107,.35);letter-spacing:1px}
+#info{
+  background:linear-gradient(180deg,#121c2e,#0e1626);border:1px solid #1f2f46;border-radius:10px;
+  padding:10px 12px;font-size:12px;line-height:1.55;color:var(--mut);min-height:84px;
+  box-shadow:0 4px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.03);
+}
+#endRank{
+  font-size:64px;font-weight:800;text-align:center;line-height:1;margin:0 0 10px;
+  text-shadow:0 0 28px currentColor;
+  animation:rankIn .6s cubic-bezier(.2,1.6,.4,1) .15s backwards;
+}
+@keyframes rankIn{from{transform:scale(2.4);opacity:0}to{transform:scale(1);opacity:1}}
+#endRank.rankS{color:#4df0c8}
+#endRank.rankA{color:#7fd9ff}
+#endRank.rankB{color:#ffd86b}
+#endRank.rankC{color:#ffba5c}
+#endRank.rankF{color:#ff6e6e}
+#info b{color:var(--ink)}
+#info .dim{color:var(--mut);opacity:.8}
+#info .bad{color:var(--bad);font-weight:700}
+.r{display:flex;justify-content:space-between;gap:18px;padding:4px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.r span:last-child{color:var(--acc);font-weight:700}
+.big{
+  width:100%;margin-top:18px;background:linear-gradient(180deg,#5ffadc,#3bd6b0);color:#06241d;border:0;border-radius:8px;
+  padding:11px;font-weight:800;letter-spacing:2px;cursor:pointer;font-size:13px;
+  box-shadow:0 4px 18px rgba(77,240,200,.25);
+}
+.big:hover{filter:brightness(1.08);box-shadow:0 6px 26px rgba(77,240,200,.4)}
+.manual{padding-left:18px;color:var(--mut);font-size:12.5px;line-height:1.7;margin:8px 0 0}
+.manual li b{color:var(--ink)}
+/* ---- phones (portrait & narrow): canvas docked on top, panel scrolls below
+   with the build palette near the top so structures are always reachable ---- */
+@media (max-width:860px){
+  #app{flex-direction:column;height:100dvh;min-height:0;padding:8px;gap:8px;max-width:none}
+  #stage{flex:0 0 auto;width:100%}
+  #game{width:100%;height:auto;max-height:42vh}
+  #side{
+    flex:1 1 auto;min-height:0;width:100%;display:flex;flex-direction:column;gap:8px;
+    overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+    padding-bottom:max(8px,env(safe-area-inset-bottom));
+  }
+  #side>*{flex-shrink:0}
+  #brand{display:none}
+  /* HUD + minimap share the top row (uses the full width); then controls,
+     build palette; forge/info below */
+  #topRow{order:1;flex-direction:row;align-items:flex-start;gap:8px}
+  #topRow #hud{flex:1 1 auto}
+  #topRow #miniWrap{flex:0 0 auto;align-self:flex-start;width:auto;max-width:52%}
+  #hud{grid-template-columns:auto 1fr auto 1fr}
+  #ctrl{order:2} #buildTabs{order:3} #catLabel{order:4} #buildBar{order:5}
+  #modeRow{order:6} #terraBar{order:7} #forge{order:8} #info{order:9}
+  .cbtn{padding:12px 2px;font-size:13px;min-height:46px}
+  .tab{padding:12px 2px 11px}
+  .tab .ti{font-size:22px}
+  #buildBar{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .bbtn{padding:12px 12px;min-height:50px}
+  .bbtn .nm{font-size:12.5px}
+  .bbtn .ic{font-size:19px;flex-basis:20px}
+  #btnMove,#btnDel{padding:14px 4px;font-size:13px}
+  #mini{height:100px;width:auto;max-width:100%}
+  .miniHead span{display:none}
+  #banner{font-size:11px;top:8px}
+  h1.title{font-size:30px;letter-spacing:4px}
+  h2.endT{font-size:24px}
+  .panelBox{padding:18px 16px}
+  .diffs{flex-direction:column}
+  .manual{font-size:12px;line-height:1.55}
+}
+/* short landscape phones: keep a slim scrolling side panel beside the canvas */
+@media (max-width:1000px) and (max-height:560px) and (orientation:landscape){
+  #app{flex-direction:row;height:100dvh;min-height:0;padding:8px;gap:8px;max-width:none}
+  #side{width:220px;flex:0 0 220px;flex-direction:column;flex-wrap:nowrap;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #side>*{order:0!important}
+  #game{width:auto;max-width:100%;max-height:calc(100dvh - 16px)}
+  .cbtn{padding:9px 2px;min-height:0}
+  #buildBar{display:grid;grid-template-columns:1fr 1fr}
+  .bbtn{padding:9px 9px;min-height:0}
+  #btnMove,#btnDel{padding:9px}
+}
+/* any touch device (incl. iPad in desktop layout): bigger tap targets, hide
+   the keyboard-hotkey badges, show touch instructions */
+@media (pointer:coarse){
+  .bbtn .hk{display:none}
+  .bbtn{min-height:44px}
+  .cbtn{min-height:42px}
+  #btnMove,#btnDel{min-height:44px}
+  .noteDesktop{display:none}
+  .noteTouch{display:block}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="game" width="1600" height="1000"></canvas>
+    <div id="banner" class="hide"></div>
+
+    <div id="menu" class="overlay show">
+      <div class="panelBox">
+        <h1 class="title">FLUX<b>FRONT</b></h1>
+        <p class="tag">Contain the Flux. Hunt the Emitters.</p>
+        <div class="diffs">
+          <button class="diff" id="diff_easy">EASY<small id="bl_easy"></small></button>
+          <button class="diff" id="diff_normal">NORMAL<small id="bl_normal"></small></button>
+          <button class="diff" id="diff_hard">HARD<small id="bl_hard"></small></button>
+          <button class="diff" id="diff_insane">INSANE<small id="bl_insane"></small></button>
+          <button class="diff" id="diff_daily" style="flex:1 1 100%">&#9733; DAILY CHALLENGE<small id="bl_daily"></small></button>
+        </div>
+        <div id="mutRow">
+          <label><input type="checkbox" id="mErode" checked> FLUX EROSION</label>
+          <label><input type="checkbox" id="mFrenzy"> FRENZY surges</label>
+          <label><input type="checkbox" id="mFragile"> FRAGILE hulls</label>
+          <label><input type="checkbox" id="mOver"> OVERCLOCK &#215;1.5e</label>
+        </div>
+        <div id="sizeRow">
+          <span class="rowLbl">MAP SIZE</span>
+          <div id="sizeBtns">
+            <button class="szb" data-sz="0">S</button>
+            <button class="szb" data-sz="1">M</button>
+            <button class="szb on" data-sz="2">L</button>
+            <button class="szb" data-sz="3">XL</button>
+            <button class="szb" data-sz="4">HUGE</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="cbtn" id="btnSandbox" style="padding:9px 4px">ZEN SANDBOX</button>
+          <button class="cbtn" id="btnLoadRep" style="padding:9px 4px">WATCH REPLAY</button>
+          <button class="cbtn" id="btnTakeChal" style="padding:9px 4px">TAKE CHALLENGE</button>
+        </div>
+        <div id="metaRow">
+          <div id="records">No records yet — win a sector.</div>
+          <div id="achRow"><span id="achCount">0 / 10</span> achievements <button class="cbtn" id="btnAch" style="flex:0 0 auto;padding:3px 8px">VIEW</button></div>
+        </div>
+        <details id="settings">
+          <summary>SETTINGS</summary>
+          <div class="setGrid">
+            <label>Music<input type="range" id="sMusic" min="0" max="1" step="0.05"></label>
+            <label>SFX<input type="range" id="sSfx" min="0" max="1" step="0.05"></label>
+            <label class="ck"><input type="checkbox" id="sShake"> Screen shake</label>
+            <label class="ck"><input type="checkbox" id="sCb"> Colorblind Flux</label>
+          </div>
+        </details>
+        <p class="ctrlNote noteDesktop"><b>1&#8211;0</b> build &#183; <b>click/drag</b> place &#183; <b>X</b> recycle &#183; <b>T</b> ranges &#183; <b>P</b> supply &#183; <b>R</b> clip &#183; <b>Space</b> pause &#183; <b>H</b> help</p>
+        <p class="ctrlNote noteTouch">Pick a category tab, <b>tap a structure</b> below the map, then <b>tap the map</b> to preview and <b>tap again</b> to place &#183; <b>pinch</b> zoom &#183; <b>drag</b> pan &#183; tap the minimap to jump.</p>
+        <button class="big hide" id="btnResume">RESUME GAME</button>
+      </div>
+    </div>
+
+    <div id="end" class="overlay">
+      <div class="panelBox">
+        <div id="endRank"></div>
+        <h2 class="endT" id="endTitle"></h2>
+        <div id="endStats"></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="cbtn" id="btnCopyRep" style="padding:9px 4px">COPY CHALLENGE</button>
+          <button class="cbtn" id="btnGhost" style="padding:9px 4px">RACE GHOST</button>
+        </div>
+        <button class="big" id="btnAgain">PLAY AGAIN</button>
+      </div>
+    </div>
+
+    <div id="ach" class="overlay">
+      <div class="panelBox">
+        <h2 class="endT" style="color:#b66bff">ACHIEVEMENTS</h2>
+        <div id="achList"></div>
+        <button class="big" id="btnAchClose">CLOSE</button>
+      </div>
+    </div>
+
+    <div id="help" class="overlay">
+      <div class="panelBox">
+        <h2 class="endT" style="color:var(--acc)">FIELD MANUAL</h2>
+        <ul class="manual">
+          <li>The <b>Flux</b> is a fluid. It pours from red <b>Emitters</b>, flows downhill, pools in low ground, and crushes anything it touches.</li>
+          <li>Everything is built by <b>energy packets</b> shipped from your <b>Command Core</b> across the network. No connection, no construction.</li>
+          <li><b>Collectors</b> and <b>Relays</b> extend the network and are the only structures others can link through.</li>
+          <li><b>Cannons</b> mow shallow Flux at the front line. <b>Mortars</b> crack deep pools at range. Both eat energy as ammo.</li>
+          <li><b>Reactors</b> and <b>Batteries</b> grow your economy. A red flow rate means you are spending faster than you produce.</li>
+          <li>Win by charging a <b>Nullifier</b> next to every Emitter. It fires once, erases all Emitters in range, and is consumed.</li>
+          <li><b>X</b> recycles structures for a refund. Height is your friend &#8212; build on ridges, defend the passes.</li>
+          <li>Structures need <b>flat ground</b>: the whole footprint must sit on one terrain level. Big buildings need big plateaus.</li>
+          <li>You can place structures <b>beyond the network</b> &#8212; they wait as dormant ghosts and come online once a connected Collector or Relay reaches them.</li>
+          <li><b>Drag</b> in build mode to chain-build a whole line &#8212; Relays and Collectors auto-space to stay linked.</li>
+          <li><b>Relocate</b> Cannons, Mortars and the Core: select one, then click it again and pick a flat destination. It flies there &#8212; offline (and the network is down while the Core is airborne). Nullifiers cannot move.</li>
+          <li><b>MOVE mode (G)</b>: drag a box over several weapons to grab them all, then click a destination &#8212; they fly there <b>keeping their formation</b>. <b>RECYCLE mode (X)</b> also box-selects: drag to scrap many, double-click to scrap a whole cluster of one type.</li>
+          <li>The <b>Terp</b> sculpts the land: select it, set a target level (&#8722;/+ or [ ]), then click or drag ground in range. Raising <i>and lowering</i>, one packet per level step. Walls, moats, platforms.</li>
+          <li><b>Collectors</b> earn energy from the ground their field claims &#8212; fields never overlap, so spread them wide.</li>
+          <li>A nullified Emitter leaves a <b>Power Zone</b>: build on it for big boosts (reactor &#215;6, weapons &#215;2 fire rate + range, battery &#215;3, backbone reach &#215;1.5).</li>
+          <li><b>Ancient Relics</b> sit on high ground. Hold a linked Collector or Relay near one for 12&#160;s to claim a permanent buff.</li>
+          <li>Every minute or two the Flux <b>surges</b> &#8212; all Emitters &#215;2.5 for 8&#160;s. The music swells 8&#160;s before it hits. Listen.</li>
+          <li>Deep Flux <b>erodes cliffs</b> over time, and it never stops growing while Emitters live. No wall is forever &#8212; you are always on the clock.</li>
+          <li><b>Spore Towers</b> lob airborne Flux blobs at your structures &#8212; walls can't stop them. Only <b>Beams</b> shoot spores down. Nullify the towers to win.</li>
+          <li><b>Sprayers</b> blanket ground with friendly <b>Anti-Flux</b> that annihilates Flux on contact &#8212; a chemical wall for places terrain can't protect.</li>
+          <li>Emitters have <b>personalities</b>: Breeders spawn children, Migrants burrow away from charging Nullifiers, and the INSANE Boss shrugs off the first strike.</li>
+          <li><b>Supply priority (P / &#8644; button)</b>: BALANCED splits packets fairly between construction and ammo; WEAPONS or BUILD forces one lane first. The HUD SUPPLY row shows who's waiting (B = build, A = ammo). Bigger energy reserves ship packets faster.</li>
+          <li><b>Digitalis</b> (dark red web) grows wherever Flux feeds it, lets Flux climb cliffs along it, and carries <b>Runners</b> that stun your structures &#8212; <b>Snipers (N)</b> pick them off.</li>
+          <li><b>Aether Totems</b> channel to the <b>FORGE</b> while a linked backbone holds them: spend &#230; on permanent fire-rate, packet, power and damage upgrades.</li>
+          <li><b>Cryo Towers (C)</b> flash-freeze Flux into raised ice ground for 25&#160;s &#8212; bridge a flooded basin and rush a Nullifier across. <b>Strafers (V)</b> fly sorties against the deepest Flux nearby.</li>
+          <li>After any run: <b>COPY REPLAY</b> shares your whole game as a paste-able code; <b>RACE GHOST</b> replays your last attempt as blue outlines while you try to beat it. <b>Mutators</b> on the menu twist the rules.</li>
+          <li><b>Shields (B)</b> push Flux away while powered — cover a Nullifier build. <b>Converter (K)</b> captures an Emitter to pump Anti-Flux for you. <b>Bomber (J)</b> carpet-bombs Anti-Flux.</li>
+          <li>Lose your <b>Core</b> and you get 25&#160;s to <b>redeploy a new one from orbit</b> — click a flat landing site. Run out of time and the sector is lost.</li>
+          <li><b>Minimap</b> (corner): click or drag to jump the camera. <b>T</b> shows every weapon range. <b>Flux squalls</b> rain Flux map-wide; <b>Magma</b> emitters turn Flux to rock.</li>
+          <li>Win runs set <b>records &amp; achievements</b> (menu). <b>COPY CHALLENGE</b> shares your exact map+time; friends <b>TAKE CHALLENGE</b> to race it. <b>R</b> records a clip. Tune audio/visuals in <b>SETTINGS</b>.</li>
+          <li><b>Economy:</b> Pylons speed packets across the network · Guppy Pads air-link distant outposts · build a Harvester on a purple Aether Node for extra Forge tech.</li>
+          <li><b>Support:</b> Repair Bays mend nearby structures · Resonators overcharge adjacent weapons (but draw Spores) · Sensor Towers scout · Inhibitors slow Flux to a crawl in a zone · the <b>Siphon</b> sits ON deep Flux and drains it into energy.</li>
+          <li><b>Touch:</b> tap to preview, tap again to confirm. Pinch (or scroll) to zoom, drag to pan.</li>
+        </ul>
+        <button class="big" id="btnHelpClose">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="side">
+    <div id="brand">FLUX<span>FRONT</span></div>
+    <div id="topRow">
+      <div id="hud">
+        <span class="lb">ENERGY</span><span class="vl" id="hudEnergy">0 / 0</span>
+        <div class="bar"><i id="energyFill"></i></div>
+        <span class="lb">FLOW</span><span class="vl" id="hudRate">+0.0/s</span>
+        <span class="lb">FLUX</span><span class="vl" id="hudFlux">&#215;1.00</span>
+        <span class="lb">TIME</span><span class="vl" id="hudTime">0:00</span>
+        <span class="lb">THREAT</span><span class="vl" id="hudThreat">0%</span>
+        <div class="bar"><i id="threatFill"></i></div>
+        <span class="lb">SUPPLY</span><span class="vl" id="hudSupply">—</span>
+      </div>
+      <div id="miniWrap">
+        <div class="miniHead">TACTICAL MAP <span>click / drag to scout</span></div>
+        <canvas id="mini" width="208" height="130"></canvas>
+      </div>
+    </div>
+    <div id="ctrl">
+      <button class="cbtn on" id="spd1">1&#215;</button>
+      <button class="cbtn" id="spd2">2&#215;</button>
+      <button class="cbtn" id="spd4">4&#215;</button>
+      <button class="cbtn" id="spd8">8&#215;</button>
+      <button class="cbtn" id="btnPause">&#10074;&#10074; PAUSE</button>
+      <button class="cbtn" id="btnMute">&#128266;</button>
+      <button class="cbtn" id="btnHelp">?</button>
+      <button class="cbtn" id="btnMenu" title="Menu / new game">&#9776;</button>
+      <button class="cbtn" id="btnSupply" title="Supply priority: balanced / weapons first / build first (P)">&#8644; BAL</button>
+    </div>
+    <div id="buildTabs"></div>
+    <div id="catLabel">ECONOMY</div>
+    <div id="buildBar"></div>
+    <div id="modeRow">
+      <button id="btnMove">&#10021; MOVE &#8212; G</button>
+      <button id="btnDel">&#9851; RECYCLE &#8212; X</button>
+    </div>
+    <div id="forge" class="hide">
+      <div id="forgeHead">FORGE <span id="fgAe">0 &#230;</span></div>
+      <button class="cbtn" id="fgRate">FIRE</button>
+      <button class="cbtn" id="fgSpeed">PKT</button>
+      <button class="cbtn" id="fgEnergy">PWR</button>
+      <button class="cbtn" id="fgDmg">DMG</button>
+    </div>
+    <div id="terraBar" class="hide">
+      <button class="cbtn" id="tMinus">&#8722;</button>
+      <span id="tLevel">L6</span>
+      <button class="cbtn" id="tPlus">+</button>
+    </div>
+    <div id="info"></div>
+  </div>
+</div>
+<script type="module" src="src/ui.js"></script>
+</body></html>
