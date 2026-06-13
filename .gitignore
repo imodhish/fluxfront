@@ -5,3 +5,9 @@ desktop.ini
 *~
 .vscode/
 .idea/
+
+# dev-only QA tooling (game stays zero-dependency)
+node_modules/
+package.json
+package-lock.json
+.qa/

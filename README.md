@@ -17,6 +17,13 @@ python -m http.server 8000
 # then open http://localhost:8000/
 ```
 
+No Python? A zero-dependency Node server is included:
+
+```bash
+node tools/serve.mjs 8000
+# then open http://localhost:8000/
+```
+
 ## What's in here
 
 - `index.html` — entry point (markup + CSS)
