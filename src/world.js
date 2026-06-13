@@ -277,9 +277,16 @@ function rebuildHm(st,x0,y0,x1,y1){
   for(let cy=-1;cy<=ROWS;cy++)
     for(let cx=-1;cx<=COLS;cx++)
       pad[(cy+1)*PW+cx+1]=clamp(ter[idx(clamp(cx,0,COLS-1),clamp(cy,0,ROWS-1))],1,TER_LEVELS);
+  const vn=bk.vnoise;
   for(let y=y0;y<y1;y++){
     for(let x=x0;x<x1;x++){
-      const gx=(x+csamp(bk.warpX,x,y))/CPX-0.5, gy=(y+csamp(bk.warpY,x,y))/CPX-0.5;
+      // coarse domain warp + a finer high-frequency wiggle that breaks the
+      // axis-aligned cell-grid staircase on cliff edges into eroded curves
+      const fwx=(vn(x/(6.5*SS),y/(6.5*SS),8123)-0.5)*7.5*SS;
+      const fwy=(vn(x/(6.5*SS),y/(6.5*SS),3344)-0.5)*7.5*SS;
+      let gx=(x+csamp(bk.warpX,x,y)+fwx)/CPX-0.5, gy=(y+csamp(bk.warpY,x,y)+fwy)/CPX-0.5;
+      if(gx<-1)gx=-1; else if(gx>COLS-1)gx=COLS-1;     // keep the 2×2 sample in the padded grid
+      if(gy<-1)gy=-1; else if(gy>ROWS-1)gy=ROWS-1;
       const xx=Math.floor(gx), yy=Math.floor(gy);
       const sx=sharpT(gx-xx), sy=sharpT(gy-yy);
       const pi=(yy+1)*PW+xx+1;
@@ -387,8 +394,11 @@ function shadeRegion(c,x0r,y0r,x1r,y1r){
       const sp=s8*s8*s8*spec*shv;
       const havg=(hm[i+x5r]+hm[i+x5l]+hm[i+y5d]+hm[i+y5u])*0.25;
       const ao=1-Math.min(0.5,Math.max(0,(havg-h)*0.55));   // deeper crevice shade
-      const lvl=Math.round(h);
-      const ck=(Math.round(hm[i+xr])!==lvl||Math.round(hm[i+yd])!==lvl)?0.78:1;
+      // smooth topographic contour: a thin dark line at each plateau boundary
+      // (half-integer height), driven by the continuous field so it follows
+      // organic curves instead of stepping along the cell grid
+      const hb=h+0.5, fb=hb-Math.floor(hb), eb=fb<0.5?fb:1-fb;
+      const ck=0.78+0.22*Math.min(1,eb*7);
       const gr=1+det*0.09;                         // gentle low-freq mottle only — no grain
       let R=(r*lr)*ao*ck*gr*1.1+sp*210-4;
       let G=(g*lg)*ao*ck*gr*1.1+sp*215-4;
