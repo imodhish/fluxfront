@@ -97,6 +97,56 @@ function pumpReplay(){
 function encodeRun(r){return btoa(unescape(encodeURIComponent(JSON.stringify(r))));}
 function decodeRun(s){return JSON.parse(decodeURIComponent(escape(atob(s.trim()))));}
 
+/* ---------- guided first mission (tutorial coach) ----------
+   A render-side state machine: each step shows a coach card and advances
+   when its predicate is met. It only reads sim state and mutates render-only
+   fields (S.tut/S.tutStep), so determinism is untouched. Started from the
+   menu's FIRST MISSION button on a small fixed-seed EASY map. */
+const TUT_SEED=0x5f10c5;
+function tHasBuilt(st,type){for(const b of st.buildings)if(b.type===type&&b.built&&b.alive)return true;return false;}
+function tHasAny(st,type){for(const b of st.buildings)if(b.type===type&&b.alive)return true;return false;}
+const TUT_STEPS=[
+  {title:'DEPLOY YOUR CORE',
+   body:'Click a flat, green landing site to drop your <b>Command Core</b>. The Flux stays frozen until you land &mdash; take your time.',
+   done:st=>st.phase==='play'},
+  {title:'HARVEST ENERGY',
+   body:'Press <b>1</b> for the Collector, then click flat ground near your Core. <b>Collectors</b> claim territory and turn it into energy.',
+   done:st=>tHasBuilt(st,'collector')},
+  {title:'EXTEND YOUR REACH',
+   body:'Press <b>2</b> for the Relay and place it out toward the open map. <b>Relays</b> carry your network &mdash; and energy &mdash; much farther.',
+   done:st=>tHasAny(st,'relay')},
+  {title:'HOLD THE LINE',
+   body:'The blue Flux is rising. Press <b>6</b> for the Cannon and place it facing the Flux to burn it back. Cannons spend energy as ammo.',
+   done:st=>tHasAny(st,'cannon')},
+  {title:'WIN THE SECTOR',
+   body:'To win you must destroy every <b>Emitter</b>. Press <b>0</b> for the Nullifier, place it within range of a red Emitter, then feed it 20 packets.',
+   done:st=>tHasAny(st,'nullifier')},
+  {title:'FINISH STRONG',
+   body:'Your Nullifier is charging &mdash; hold on until it fires and erases the Emitter. You know the basics now, Commander. Clear the sector!',
+   done:st=>st.phase==='won'||st.phase==='lost', last:true}
+];
+let tutShown=-1;
+function endTutorial(){if(S)S.tut=false;tutShown=-1;if(el.tutCard)el.tutCard.classList.add('hide');}
+function tutCheck(){
+  const card=el.tutCard;
+  if(!card)return;
+  if(!S||!S.tut||S.phase==='menu'){card.classList.add('hide');return;}
+  const cur=TUT_STEPS[S.tutStep|0];
+  if(cur&&cur.done(S)){
+    if(cur.last){endTutorial();return;}
+    S.tutStep=(S.tutStep|0)+1; sfx('uiclick');
+  }
+  const s=TUT_STEPS[S.tutStep|0];
+  if(!s){card.classList.add('hide');return;}
+  card.classList.remove('hide');
+  if(tutShown!==S.tutStep){
+    if(el.tutStepNo)el.tutStepNo.textContent=((S.tutStep|0)+1)+' / '+TUT_STEPS.length;
+    if(el.tutTitle)el.tutTitle.innerHTML=s.title;
+    if(el.tutBody)el.tutBody.innerHTML=s.body;
+    tutShown=S.tutStep;
+  }
+}
+
 /* ---------- UI helpers ---------- */
 export function banner(show,text){
   if(text!==undefined)el.banner.textContent=text;
@@ -169,8 +219,8 @@ export function updateInfo(force){
     html='Pick a difficulty to begin.';
   }else if(S.phase==='placeCore'){
     html=TOUCH
-      ?'<b>Deploy the Command Core.</b><br>Tap a flat 3×3 plateau far from the red Emitters, then tap again to confirm. Low ground floods first — height is your friend.'
-      :'<b>Deploy the Command Core.</b><br>Click a flat 3×3 plateau far from the red Emitters. Low ground floods first — height is your friend.';
+      ?'<b>Deploy the Command Core.</b><br>Tap any flat 3×3 plateau — anywhere, even beside an Emitter — then tap again to confirm. The Flux only starts once you land.'
+      :'<b>Deploy the Command Core.</b><br>Click any flat 3×3 plateau — anywhere, even right next to an Emitter. The Flux only starts once you land. Low ground floods first.';
   }else if(delMode){
     html=TOUCH
       ?'<b>RECYCLE MODE</b><br>Tap to recycle one · <b>drag a box</b> to recycle many · <b>double-tap</b> a structure to recycle its kind nearby.'
@@ -792,7 +842,8 @@ function init(){
     mini.addEventListener('pointerup',onMiniUp);
     mini.addEventListener('pointercancel',onMiniUp);
   }
-  const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow'];
+  const ids=['banner','menu','end','endTitle','endStats','endRank','btnAgain','help','btnHelpClose','info','buildBar','hudEnergy','hudRate','hudFlux','hudTime','hudThreat','energyFill','threatFill','spd1','spd2','spd4','btnPause','btnMute','btnHelp','btnDel','btnMenu','btnResume','btnSupply','hudSupply','terraBar','tMinus','tPlus','tLevel','forge','fgAe','fgRate','fgSpeed','fgEnergy','fgDmg','btnSandbox','btnCopyRep','btnGhost','btnLoadRep','mFrenzy','mFragile','mOver','btnTakeChal','records','achCount','btnAch','ach','achList','btnAchClose','sMusic','sSfx','sShake','sCb','sBloom','mini','spd8','buildTabs','catLabel','mErode','btnMove','modeRow',
+    'btnTutorial','tutCard','tutStepNo','tutTitle','tutBody','tutSkip'];
   for(const id of ids)el[id]=document.getElementById(id);
   // categories live behind icon tabs so the palette stays compact
   VCATS.forEach(function(cat,ci){
@@ -808,17 +859,20 @@ function init(){
   loadAll();
   el.sMusic.value=settings.musicVol; el.sSfx.value=settings.sfxVol;
   el.sShake.checked=settings.shake; el.sCb.checked=settings.colorblind;
+  if(el.sBloom)el.sBloom.checked=settings.bloom;
   function onSetting(){
     settings.musicVol=parseFloat(el.sMusic.value);
     settings.sfxVol=parseFloat(el.sSfx.value);
     settings.shake=el.sShake.checked;
     settings.colorblind=el.sCb.checked;
+    if(el.sBloom)settings.bloom=el.sBloom.checked;
     applyVolumes(); saveSettings();
   }
   el.sMusic.addEventListener('input',function(){initAudio();onSetting();});
   el.sSfx.addEventListener('input',function(){initAudio();onSetting();});
   el.sShake.addEventListener('change',onSetting);
   el.sCb.addEventListener('change',onSetting);
+  if(el.sBloom)el.sBloom.addEventListener('change',onSetting);
   const DIFF_KEYS=['easy','normal','hard','insane'];
   function refreshMenuMeta(){
     const parts=[];
@@ -848,6 +902,12 @@ function init(){
     });
   });
   function diffStart(dk){return function(){initAudio();challengeTarget=null;startGame(dk,undefined,{mods:readMods()});};}
+  if(el.btnTutorial)el.btnTutorial.addEventListener('click',function(){
+    initAudio(); challengeTarget=null;
+    startGame('easy',TUT_SEED,{mods:{},sizeIdx:0,tutorial:true});   // small fixed map, gentle pressure
+    msg('First Mission — follow the coaching card. You can SKIP anytime.','#9fd0ff');
+  });
+  if(el.tutSkip)el.tutSkip.addEventListener('click',endTutorial);
   document.getElementById('diff_easy').addEventListener('click',diffStart('easy'));
   document.getElementById('diff_normal').addEventListener('click',diffStart('normal'));
   document.getElementById('diff_hard').addEventListener('click',diffStart('hard'));
@@ -979,5 +1039,7 @@ function frame(now){
     if(n>=cap)acc=0;
   }
   render();
+  if(S&&S.tut)tutCheck();
+  else if(el.tutCard&&!el.tutCard.classList.contains('hide'))el.tutCard.classList.add('hide');
 }
 window.addEventListener('load',init);

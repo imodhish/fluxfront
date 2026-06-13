@@ -515,7 +515,8 @@ export function newGame(dk,fixedSeed,opts){
     slow:new Float32Array(COLS*ROWS), pylonSpeed:0,
     ice:[], tickN:0, coreDown:false, reclaimT:0,
     daily:!!(opts&&opts.daily), dailyKey:(opts&&opts.dailyKey)||'',
-    mods:(opts&&opts.mods)||{}, sandbox:!!(opts&&opts.sandbox)
+    mods:(opts&&opts.mods)||{}, sandbox:!!(opts&&opts.sandbox),
+    tut:!!(opts&&opts.tutorial), tutStep:0
   });
   S.ter=genTerrain(rng);
   placeEmitters(S);

@@ -66,6 +66,33 @@ function ensureFX(){
 export function resetVisuals(){
   vigCan=null; redVigCan=null; scanCan=null; frameCan=null; mmTerr=null; mmTerrKey=NaN;
 }
+/* full-frame bloom: downscale the rendered frame (= blur), crush the midtones
+   so only highlights survive (cheap bright-pass), then add it back — Flux,
+   emitters, beams and explosions glow cinematically. Cheap, toggleable. */
+let bloomCan=null, bloomCtx=null;
+function drawBloom(){
+  const cv=ctx&&ctx.canvas;
+  if(!settings.bloom || !cv || !cv.width)return;
+  const bw=Math.max(1,cv.width>>2), bh=Math.max(1,cv.height>>2);
+  if(!bloomCan){bloomCan=document.createElement('canvas');bloomCtx=bloomCan.getContext('2d');}
+  if(bloomCan.width!==bw||bloomCan.height!==bh){bloomCan.width=bw;bloomCan.height=bh;}
+  const b=bloomCtx;
+  if(!b||!b.setTransform)return;
+  b.setTransform(1,0,0,1,0,0); b.globalCompositeOperation='source-over'; b.globalAlpha=1;
+  b.imageSmoothingEnabled=true;
+  b.clearRect(0,0,bw,bh);
+  b.drawImage(cv,0,0,cv.width,cv.height,0,0,bw,bh);   // downscale → blur
+  b.globalCompositeOperation='multiply';               // crush midtones → keep only brights
+  b.fillStyle='#6a6a6a'; b.fillRect(0,0,bw,bh);
+  b.globalCompositeOperation='source-over';
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalCompositeOperation='lighter';
+  ctx.globalAlpha=0.85;
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(bloomCan,0,0,bw,bh,0,0,cv.width,cv.height);   // upscale (blur) + add
+  ctx.restore();
+}
 
 /* ---------- messages ---------- */
 export function msg(text,col){
@@ -1720,6 +1747,7 @@ export function render(){
     }
     ctx.stroke();
   }
+  drawBloom();                    // cinematic glow over the world; UI text drawn crisp on top
   drawHoverInfo();
   drawMsgs();
   if(paused && (S.phase==='placeCore'||S.phase==='play')){

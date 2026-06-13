@@ -90,6 +90,12 @@ h1.title{
 .title b{color:transparent}
 h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px currentColor}
 .tag{color:var(--mut);margin:0 0 16px;font-size:13px}
+.byline{display:inline-block;margin-left:6px;color:var(--acc);font-weight:700;letter-spacing:1px;
+  text-shadow:0 0 10px rgba(77,240,200,.4)}
+/* small persistent in-game credit, bottom-left of the stage */
+#credit{position:absolute;left:10px;bottom:8px;z-index:5;font-size:10px;letter-spacing:1px;
+  color:var(--mut);opacity:.55;pointer-events:none;user-select:none}
+#credit b{color:var(--acc)}
 .diffs{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 16px}
 .diff{
   flex:1 1 42%;background:linear-gradient(180deg,#0d1626,#0a111d);border:1px solid var(--line);border-radius:10px;
@@ -276,6 +282,26 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
   box-shadow:0 4px 18px rgba(77,240,200,.25);
 }
 .big:hover{filter:brightness(1.08);box-shadow:0 6px 26px rgba(77,240,200,.4)}
+.tutBtn{margin:0 0 14px;display:flex;flex-direction:column;gap:2px;align-items:center;
+  background:linear-gradient(180deg,#7c9cff,#5b6ef0);color:#fff;
+  box-shadow:0 4px 18px rgba(91,110,240,.35);animation:tutPulse 2.4s ease-in-out infinite}
+.tutBtn small{font-weight:600;letter-spacing:.5px;font-size:10px;opacity:.85;text-transform:none}
+.tutBtn:hover{filter:brightness(1.08);box-shadow:0 6px 26px rgba(91,110,240,.5)}
+@keyframes tutPulse{0%,100%{box-shadow:0 4px 18px rgba(91,110,240,.35)}50%{box-shadow:0 4px 26px rgba(124,156,255,.6)}}
+/* in-game tutorial coach card (floats over the canvas) */
+#tutCard{position:absolute;left:12px;bottom:62px;z-index:8;width:min(330px,78vw);
+  background:linear-gradient(160deg,rgba(11,19,30,.96),rgba(8,13,21,.97));
+  border:1px solid var(--acc);border-radius:12px;padding:11px 13px;
+  box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 22px rgba(77,240,200,.18);animation:tutIn .35s ease}
+@keyframes tutIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.tutHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#tutStepNo{font:700 10px/1 ui-monospace,monospace;letter-spacing:1px;color:var(--acc);
+  background:rgba(77,240,200,.12);padding:3px 7px;border-radius:6px}
+#tutSkip{background:none;border:0;color:var(--mut);font-size:10px;letter-spacing:1px;cursor:pointer;padding:2px 4px}
+#tutSkip:hover{color:#fff}
+#tutCard h4{margin:0 0 4px;font-size:13px;letter-spacing:1px;color:#eaf6f2}
+#tutCard p{margin:0;font-size:12px;line-height:1.5;color:var(--mut)}
+#tutCard b{color:var(--acc);font-weight:700}
 .manual{padding-left:18px;color:var(--mut);font-size:12.5px;line-height:1.7;margin:8px 0 0}
 .manual li b{color:var(--ink)}
 /* ---- phones (portrait & narrow): canvas docked on top, panel scrolls below
@@ -344,11 +370,18 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
   <div id="stage">
     <canvas id="game" width="1600" height="1000"></canvas>
     <div id="banner" class="hide"></div>
+    <div id="credit">FLUX<b>FRONT</b> &#183; By <b>iModhish</b></div>
+    <div id="tutCard" class="hide">
+      <div class="tutHead"><span id="tutStepNo">1 / 6</span><button id="tutSkip">SKIP &#215;</button></div>
+      <h4 id="tutTitle"></h4>
+      <p id="tutBody"></p>
+    </div>
 
     <div id="menu" class="overlay show">
       <div class="panelBox">
         <h1 class="title">FLUX<b>FRONT</b></h1>
-        <p class="tag">Contain the Flux. Hunt the Emitters.</p>
+        <p class="tag">Contain the Flux. Hunt the Emitters. <span class="byline">By iModhish</span></p>
+        <button class="big tutBtn" id="btnTutorial">&#9654; START FIRST MISSION <small>new here? learn in 5 minutes</small></button>
         <div class="diffs">
           <button class="diff" id="diff_easy">EASY<small id="bl_easy"></small></button>
           <button class="diff" id="diff_normal">NORMAL<small id="bl_normal"></small></button>
@@ -388,6 +421,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
             <label>SFX<input type="range" id="sSfx" min="0" max="1" step="0.05"></label>
             <label class="ck"><input type="checkbox" id="sShake"> Screen shake</label>
             <label class="ck"><input type="checkbox" id="sCb"> Colorblind Flux</label>
+            <label class="ck"><input type="checkbox" id="sBloom"> Bloom glow</label>
           </div>
         </details>
         <p class="ctrlNote noteDesktop"><b>1&#8211;0</b> build &#183; <b>click/drag</b> place &#183; <b>X</b> recycle &#183; <b>T</b> ranges &#183; <b>P</b> supply &#183; <b>R</b> clip &#183; <b>Space</b> pause &#183; <b>H</b> help</p>
@@ -406,6 +440,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
           <button class="cbtn" id="btnGhost" style="padding:9px 4px">RACE GHOST</button>
         </div>
         <button class="big" id="btnAgain">PLAY AGAIN</button>
+        <p class="tag" style="text-align:center;margin:14px 0 0;font-size:11px">FLUX<b style="color:var(--acc)">FRONT</b> &#8212; <span class="byline" style="margin:0">By iModhish</span></p>
       </div>
     </div>
 
@@ -455,6 +490,7 @@ h2.endT{font-size:30px;margin:0 0 14px;letter-spacing:4px;text-shadow:0 0 18px c
           <li><b>Support:</b> Repair Bays mend nearby structures · Resonators overcharge adjacent weapons (but draw Spores) · Sensor Towers scout · Inhibitors slow Flux to a crawl in a zone · the <b>Siphon</b> sits ON deep Flux and drains it into energy.</li>
           <li><b>Touch:</b> tap to preview, tap again to confirm. Pinch (or scroll) to zoom, drag to pan.</li>
         </ul>
+        <p class="tag" style="margin:10px 0 0;font-size:11px;text-align:center">FLUX<b style="color:var(--acc)">FRONT</b> &#8212; designed &amp; built <span class="byline" style="margin:0">By iModhish</span></p>
         <button class="big" id="btnHelpClose">CLOSE</button>
       </div>
     </div>

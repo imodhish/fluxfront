@@ -883,7 +883,10 @@ export function canPlace(st,type,cx,cy,ignoreId){
     }
   }
   for(const e of st.emitters){
-    if(e.alive && e.cx>=gx-1 && e.cx<gx+sz+1 && e.cy>=gy-1 && e.cy<gy+sz+1)return{ok:false,why:'Too close to Emitter'};
+    if(!e.alive)continue;
+    if(type==='core'){                       // the Core may deploy right beside Emitters — only block sitting ON one
+      if(e.cx>=gx && e.cx<gx+sz && e.cy>=gy && e.cy<gy+sz)return{ok:false,why:'On an Emitter'};
+    }else if(e.cx>=gx-1 && e.cx<gx+sz+1 && e.cy>=gy-1 && e.cy<gy+sz+1)return{ok:false,why:'Too close to Emitter'};
   }
   for(const rl of st.relics){
     if(rl.cx>=gx && rl.cx<gx+sz && rl.cy>=gy && rl.cy<gy+sz)return{ok:false,why:'Relic site'};
@@ -899,12 +902,7 @@ export function canPlace(st,type,cx,cy,ignoreId){
   if(type==='harvester'){
     if(!onNode)return{ok:false,why:'Must sit on an Aether Node'};
   }else if(onNode)return{ok:false,why:'Aether Node — use a Harvester'};
-  if(type==='core'){
-    for(const e of st.emitters){
-      if(e.alive && dist(cx,cy,e.cx,e.cy)<13)return{ok:false,why:'Too close to an Emitter'};
-    }
-    return{ok:true};
-  }
+  if(type==='core')return{ok:true};          // Core deploys anywhere flat & Flux-free, even by Emitters
   if(type==='nullifier'){
     const px=(gx+sz/2), py=(gy+sz/2);
     const any=st.emitters.some(e=>e.alive&&dist(e.cx+0.5,e.cy+0.5,px,py)<=T.range+0.5)
@@ -949,6 +947,7 @@ export function place(st,type,cx,cy){
       msg('◈ Core redeployed from orbit. Rebuild the network!','#4df0c8');
     }else{
       msg('Command Core deployed. Build Collectors to expand.','#4df0c8');
+      if(!st.tut)msg('OBJECTIVE: charge a Nullifier beside every Emitter to win.','#ffd27f');
     }
     sfx('done');
   }

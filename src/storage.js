@@ -42,7 +42,7 @@ export function loadAll(){
   return DB;
 }
 export function saveSettings(){
-  DB.settings={musicVol:settings.musicVol,sfxVol:settings.sfxVol,shake:settings.shake,colorblind:settings.colorblind};
+  DB.settings={musicVol:settings.musicVol,sfxVol:settings.sfxVol,shake:settings.shake,colorblind:settings.colorblind,bloom:settings.bloom};
   safePut();
 }
 /* record a finished game; returns {best:bool, newAch:[ids]} */
